@@ -1,46 +1,238 @@
-# Getting Started with Create React App
+# P25-CRM - Hosting Client Management System
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A modern React-based CRM system designed specifically for web development agencies managing hosting clients. Built with TypeScript, Firebase, and a beautiful modern UI.
 
-## Available Scripts
+![P25-CRM Dashboard](https://img.shields.io/badge/React-18.2.0-blue)
+![Firebase](https://img.shields.io/badge/Firebase-v9-orange)
+![TypeScript](https://img.shields.io/badge/TypeScript-4.9-blue)
 
-In the project directory, you can run:
+## 🚀 Features
 
-### `npm start`
+### 🏢 **Customer Management**
+- Manage hosting clients with complete contact information
+- Track multiple websites per customer
+- Visual status indicators for payment coverage
+- Search across customers and websites
+- Notes and custom fields for each client
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+### 🌐 **Website Tracking**
+- Multiple websites per customer with individual hosting plans
+- Monthly fee tracking per website
+- Status management (Active, Suspended, Cancelled)
+- Visual indicators for payment status:
+  - 🔴 **Expired**: Payment overdue
+  - 🟡 **Expiring Soon**: Payment due within 7 days
+  - 🟢 **Current**: Payment coverage active
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+### 💳 **Payment Management**
+- Detailed payment tracking with coverage periods
+- Link payments to specific websites or customers
+- Multiple payment methods support
+- Payment status tracking (Paid, Pending, Failed)
+- Invoice number tracking
+- Complete payment history per customer
 
-### `npm test`
+### 📊 **Dashboard & Analytics**
+- Overview of total customers and active subscriptions
+- Monthly revenue calculations
+- Recent activity tracking
+- Visual statistics cards
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+### 🔐 **Security & Authentication**
+- Firebase Authentication with admin access
+- Protected routes requiring authentication
+- Secure data storage with Firestore
+- Environment-based configuration
 
-### `npm run build`
+## 🛠️ Technology Stack
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+- **Frontend**: React 18 with TypeScript
+- **UI Framework**: Custom CSS with modern design system
+- **Icons**: Lucide React
+- **Backend**: Firebase (Authentication + Firestore)
+- **Routing**: React Router DOM
+- **Date Handling**: date-fns
+- **Build Tool**: Create React App
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+## 📋 Prerequisites
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+- Node.js (v16 or higher)
+- npm or yarn
+- Firebase project with Authentication and Firestore enabled
+- Git for version control
 
-### `npm run eject`
+## 🔧 Installation
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/yourusername/p25-crm.git
+   cd p25-crm
+   ```
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
+3. **Set up Firebase**
+   - Create a Firebase project at [Firebase Console](https://console.firebase.google.com)
+   - Enable Authentication with Email/Password
+   - Create a Firestore database
+   - Copy your Firebase configuration
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
+4. **Environment Configuration**
+   Create a `.env` file in the root directory:
+   ```env
+   REACT_APP_FIREBASE_API_KEY=your_api_key_here
+   REACT_APP_FIREBASE_AUTH_DOMAIN=your_auth_domain_here
+   REACT_APP_FIREBASE_PROJECT_ID=your_project_id_here
+   REACT_APP_FIREBASE_STORAGE_BUCKET=your_storage_bucket_here
+   REACT_APP_FIREBASE_MESSAGING_SENDER_ID=your_messaging_sender_id_here
+   REACT_APP_FIREBASE_APP_ID=your_app_id_here
+   ```
 
-## Learn More
+5. **Configure Firestore Security Rules**
+   ```javascript
+   rules_version = '2';
+   service cloud.firestore {
+     match /databases/{database}/documents {
+       match /{document=**} {
+         allow read, write: if request.auth != null;
+       }
+     }
+   }
+   ```
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+6. **Create Admin User**
+   - Go to Firebase Console → Authentication → Users
+   - Add a user with your admin email and password
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+## 🚀 Running the Application
+
+### Development
+```bash
+npm start
+```
+The app will open at `http://localhost:3000`
+
+### Production Build
+```bash
+npm run build
+```
+
+### Testing
+```bash
+npm test
+```
+
+## 🌐 Deployment
+
+### Render Deployment
+
+1. **Push to GitHub** (this repository)
+
+2. **Connect to Render**
+   - Go to [Render Dashboard](https://dashboard.render.com)
+   - Click "New +" → "Static Site"
+   - Connect your GitHub repository
+
+3. **Configure Build Settings**
+   - **Build Command**: `npm run build`
+   - **Publish Directory**: `build`
+
+4. **Set Environment Variables** in Render:
+   ```
+   REACT_APP_FIREBASE_API_KEY
+   REACT_APP_FIREBASE_AUTH_DOMAIN
+   REACT_APP_FIREBASE_PROJECT_ID
+   REACT_APP_FIREBASE_STORAGE_BUCKET
+   REACT_APP_FIREBASE_MESSAGING_SENDER_ID
+   REACT_APP_FIREBASE_APP_ID
+   ```
+
+5. **Deploy**
+   - Click "Create Static Site"
+   - Render will automatically build and deploy your app
+
+## 📱 Usage
+
+1. **Login**: Use your Firebase admin credentials
+2. **Add Customers**: Create customer profiles with contact information
+3. **Manage Websites**: Add multiple websites per customer with hosting details
+4. **Track Payments**: Record payments and set coverage periods
+5. **Monitor Status**: Use visual indicators to track payment status
+6. **View Analytics**: Check dashboard for business insights
+
+## 🎨 UI Features
+
+- **Modern Design**: Clean, professional interface
+- **Responsive**: Works on desktop, tablet, and mobile
+- **Dark Sidebar**: Professional navigation with icons
+- **Color-Coded Status**: Visual indicators for quick reference
+- **Modal Forms**: User-friendly data entry
+- **Search Functionality**: Quick filtering and search
+- **Smooth Animations**: Professional hover effects and transitions
+
+## 🔒 Security
+
+- Firebase Authentication for secure access
+- Environment variables for sensitive configuration
+- Protected routes requiring authentication
+- Secure Firestore rules for data access
+- No sensitive data in repository
+
+## 📁 Project Structure
+
+```
+src/
+├── components/           # Reusable UI components
+│   ├── Layout.tsx       # Main app layout
+│   ├── Sidebar.tsx      # Navigation sidebar
+│   ├── Login.tsx        # Authentication form
+│   └── PrivateRoute.tsx # Route protection
+├── pages/               # Main application pages
+│   ├── Dashboard.tsx    # Analytics dashboard
+│   ├── CustomersWithWebsites.tsx  # Customer management
+│   ├── Payments.tsx     # Payment tracking
+│   ├── Services.tsx     # Service management
+│   └── Settings.tsx     # User preferences
+├── context/             # React Context providers
+│   └── AuthContext.tsx  # Authentication context
+├── config/              # Configuration files
+│   └── firebase.ts      # Firebase setup
+├── types/               # TypeScript type definitions
+│   └── index.ts         # Interface definitions
+├── App.tsx              # Main application component
+├── App.css              # Global styles
+└── index.tsx            # Application entry point
+```
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## 📄 License
+
+This project is licensed under the MIT License.
+
+## 🆘 Support
+
+For support, create an issue in the GitHub repository.
+
+## 🔮 Roadmap
+
+- [ ] Advanced reporting and analytics
+- [ ] Email notification system
+- [ ] Automated invoice generation
+- [ ] Client portal for self-service
+- [ ] Integration with payment processors
+- [ ] Backup and export functionality
+- [ ] Multi-user support with roles
+
+---
+
+Built with ❤️ for web development agencies managing hosting clients.
