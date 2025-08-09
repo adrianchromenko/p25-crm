@@ -50,3 +50,31 @@ export interface Service {
   createdAt?: Date;
   updatedAt?: Date;
 }
+
+export interface InvoiceLineItem {
+  id: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+}
+
+export interface Invoice {
+  id?: string;
+  invoiceNumber: string;
+  customerId: string;
+  customerName: string;
+  customerEmail: string;
+  customerAddress?: string;
+  issueDate: string;
+  dueDate: string;
+  lineItems: InvoiceLineItem[];
+  subtotal: number;
+  hstRate: number; // 0.13 for Ontario HST
+  hstAmount: number;
+  totalAmount: number;
+  status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
+  notes?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+}

@@ -7,6 +7,7 @@ import PrivateRoute from './components/PrivateRoute';
 import Dashboard from './pages/Dashboard';
 import CustomersWithWebsites from './pages/CustomersWithWebsites';
 import Payments from './pages/Payments';
+import Invoices from './pages/Invoices';
 import Services from './pages/Services';
 import Settings from './pages/Settings';
 import './App.css';
@@ -29,6 +30,7 @@ function App() {
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="customers" element={<CustomersWithWebsites />} />
             <Route path="payments" element={<Payments />} />
+            <Route path="invoices" element={<Invoices />} />
             <Route path="services" element={<Services />} />
             <Route path="settings" element={<Settings />} />
           </Route>
