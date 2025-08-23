@@ -20,7 +20,8 @@ import {
   Download,
   Eye,
   Search,
-  FileText
+  FileText,
+  UserPlus
 } from 'lucide-react';
 import { format, parseISO, addDays } from 'date-fns';
 import { v4 as uuidv4 } from 'uuid';
@@ -37,6 +38,14 @@ const Invoices: React.FC = () => {
   const [previewInvoice, setPreviewInvoice] = useState<Invoice | null>(null);
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
   const [lineItems, setLineItems] = useState<InvoiceLineItem[]>([]);
+  const [showNewCustomerForm, setShowNewCustomerForm] = useState(false);
+  const [newCustomerData, setNewCustomerData] = useState<Partial<Customer>>({
+    name: '',
+    email: '',
+    phone: '',
+    company: '',
+    status: 'active',
+  });
   const [formData, setFormData] = useState<Partial<Invoice>>({
     invoiceNumber: '',
     customerId: '',
@@ -44,7 +53,7 @@ const Invoices: React.FC = () => {
     customerEmail: '',
     customerAddress: '',
     issueDate: new Date().toISOString().split('T')[0],
-    dueDate: addDays(new Date(), 30).toISOString().split('T')[0],
+    dueDate: new Date().toISOString().split('T')[0],
     subtotal: 0,
     hstRate: 0.13,
     hstAmount: 0,
@@ -91,8 +100,9 @@ const Invoices: React.FC = () => {
   const generateInvoiceNumber = () => {
     const year = new Date().getFullYear();
     const month = (new Date().getMonth() + 1).toString().padStart(2, '0');
-    const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-    return `INV-${year}${month}-${random}`;
+    const day = new Date().getDate().toString().padStart(2, '0');
+    const random = Math.floor(Math.random() * 10).toString();
+    return `${year}${month}${day}${random}`;
   };
 
   const addLineItem = () => {
@@ -139,20 +149,76 @@ const Invoices: React.FC = () => {
   };
 
   const handleCustomerSelect = (customerId: string) => {
-    const customer = customers.find(c => c.id === customerId);
-    if (customer) {
+    if (customerId === 'new-customer') {
+      setShowNewCustomerForm(true);
       setFormData({
         ...formData,
-        customerId,
-        customerName: customer.name,
-        customerEmail: customer.email,
-        customerAddress: `${customer.company}\n${customer.phone}\n${customer.email}`
+        customerId: '',
+        customerName: '',
+        customerEmail: '',
+        customerAddress: ''
       });
+    } else {
+      const customer = customers.find(c => c.id === customerId);
+      if (customer) {
+        setFormData({
+          ...formData,
+          customerId,
+          customerName: customer.name,
+          customerEmail: customer.email,
+          customerAddress: `${customer.company}\n${customer.phone}\n${customer.email}`
+        });
+      }
+      setShowNewCustomerForm(false);
+    }
+  };
+
+  const handleCreateCustomer = async () => {
+    try {
+      const docRef = await addDoc(collection(db, 'customers'), {
+        ...newCustomerData,
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      });
+      
+      const newCustomer = {
+        id: docRef.id,
+        ...newCustomerData
+      } as Customer;
+      
+      setCustomers([...customers, newCustomer]);
+      
+      // Auto-select the new customer
+      setFormData({
+        ...formData,
+        customerId: docRef.id,
+        customerName: newCustomerData.name || '',
+        customerEmail: newCustomerData.email || '',
+        customerAddress: `${newCustomerData.company}\n${newCustomerData.phone}\n${newCustomerData.email}`
+      });
+      
+      setShowNewCustomerForm(false);
+      setNewCustomerData({
+        name: '',
+        email: '',
+        phone: '',
+        company: '',
+        status: 'active',
+      });
+    } catch (error) {
+      console.error('Error creating customer:', error);
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // If new customer form is showing but customer hasn't been created yet
+    if (showNewCustomerForm && !formData.customerId) {
+      alert('Please create the customer first before saving the invoice');
+      return;
+    }
+    
     try {
       const invoiceData = {
         ...formData,
@@ -205,7 +271,7 @@ const Invoices: React.FC = () => {
         customerEmail: '',
         customerAddress: '',
         issueDate: new Date().toISOString().split('T')[0],
-        dueDate: addDays(new Date(), 30).toISOString().split('T')[0],
+        dueDate: new Date().toISOString().split('T')[0],
         subtotal: 0,
         hstRate: 0.13,
         hstAmount: 0,
@@ -222,6 +288,14 @@ const Invoices: React.FC = () => {
     setShowModal(false);
     setEditingInvoice(null);
     setLineItems([]);
+    setShowNewCustomerForm(false);
+    setNewCustomerData({
+      name: '',
+      email: '',
+      phone: '',
+      company: '',
+      status: 'active',
+    });
   };
 
   const openPreview = (invoice: Invoice) => {
@@ -397,11 +471,12 @@ const Invoices: React.FC = () => {
                 <div className="form-group">
                   <label>Customer</label>
                   <select
-                    value={formData.customerId}
+                    value={showNewCustomerForm ? 'new-customer' : formData.customerId}
                     onChange={(e) => handleCustomerSelect(e.target.value)}
-                    required
+                    required={!showNewCustomerForm}
                   >
                     <option value="">Select Customer</option>
+                    <option value="new-customer">+ Add New Customer</option>
                     {customers.map((customer) => (
                       <option key={customer.id} value={customer.id}>
                         {customer.name} - {customer.company}
@@ -454,6 +529,56 @@ const Invoices: React.FC = () => {
                   />
                 </div>
               </div>
+
+              {showNewCustomerForm && (
+                <div className="new-customer-form">
+                  <h3><UserPlus size={18} /> New Customer Details</h3>
+                  <div className="form-grid">
+                    <div className="form-group">
+                      <label>Name *</label>
+                      <input
+                        type="text"
+                        value={newCustomerData.name}
+                        onChange={(e) => setNewCustomerData({ ...newCustomerData, name: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Email *</label>
+                      <input
+                        type="email"
+                        value={newCustomerData.email}
+                        onChange={(e) => setNewCustomerData({ ...newCustomerData, email: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Company</label>
+                      <input
+                        type="text"
+                        value={newCustomerData.company}
+                        onChange={(e) => setNewCustomerData({ ...newCustomerData, company: e.target.value })}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Phone</label>
+                      <input
+                        type="tel"
+                        value={newCustomerData.phone}
+                        onChange={(e) => setNewCustomerData({ ...newCustomerData, phone: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                  <button 
+                    type="button" 
+                    className="btn-secondary"
+                    onClick={handleCreateCustomer}
+                    disabled={!newCustomerData.name || !newCustomerData.email}
+                  >
+                    Create Customer
+                  </button>
+                </div>
+              )}
 
               <div className="line-items-section">
                 <div className="section-header">
@@ -578,9 +703,23 @@ const Invoices: React.FC = () => {
             <div id="invoice-preview" className="invoice-preview">
               <div className="invoice-header">
                 <div className="company-info">
-                  <h1>P25 Development</h1>
-                  <p>Web Development & Hosting Services</p>
-                  <p>contact@p25dev.com</p>
+                  <img 
+                    src="/images/logo.png" 
+                    alt="Primary Digital Marketing" 
+                    className="invoice-logo"
+                    crossOrigin="anonymous"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = 'none';
+                    }}
+                  />
+                  <div className="company-details">
+                    <p>Adrian Chromenko</p>
+                    <p>66 Chartwell Dr.</p>
+                    <p>Sault Ste. Marie, Ontario</p>
+                    <p>(647) 203-3189</p>
+                    <p>adrian@primarydm.com</p>
+                    <p className="hst-number">HST#: 83023 3235 RT0001</p>
+                  </div>
                 </div>
                 <div className="invoice-meta">
                   <h2>INVOICE</h2>
