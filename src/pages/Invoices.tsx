@@ -26,7 +26,6 @@ import {
 import { format, parseISO, addDays } from 'date-fns';
 import { v4 as uuidv4 } from 'uuid';
 import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
 
 const Invoices: React.FC = () => {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -304,34 +303,215 @@ const Invoices: React.FC = () => {
   };
 
   const generatePDF = async (invoice: Invoice) => {
-    const element = document.getElementById('invoice-preview');
-    if (!element) return;
-
     try {
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff'
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 20;
+      let yPos = margin;
+
+      // Set default font
+      pdf.setFont('helvetica');
+      
+      // Add logo if it exists
+      try {
+        const logoImg = new Image();
+        logoImg.crossOrigin = 'anonymous';
+        await new Promise((resolve, reject) => {
+          logoImg.onload = resolve;
+          logoImg.onerror = reject;
+          logoImg.src = '/images/logo.png';
+        });
+        
+        // Add logo to PDF
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = logoImg.width;
+        canvas.height = logoImg.height;
+        ctx?.drawImage(logoImg, 0, 0);
+        const logoBase64 = canvas.toDataURL('image/png');
+        
+        // Calculate logo dimensions (max 25mm wide, maintain aspect ratio)
+        const maxLogoWidth = 25;
+        const logoAspectRatio = logoImg.height / logoImg.width;
+        const logoWidth = Math.min(maxLogoWidth, 25);
+        const logoHeight = logoWidth * logoAspectRatio;
+        
+        pdf.addImage(logoBase64, 'PNG', margin, yPos, logoWidth, logoHeight);
+        yPos += logoHeight + 8;
+      } catch (error) {
+        console.log('Logo not found, continuing without logo');
+        // Continue without logo if it fails to load
+      }
+      
+      // Company info section
+      pdf.setFontSize(10);
+      pdf.setTextColor(100, 116, 139); // #64748b
+      pdf.text('Adrian Chromenko', margin, yPos);
+      yPos += 5;
+      pdf.text('66 Chartwell Dr.', margin, yPos);
+      yPos += 5;
+      pdf.text('Sault Ste. Marie, Ontario', margin, yPos);
+      yPos += 5;
+      pdf.text('(647) 203-3189', margin, yPos);
+      yPos += 5;
+      pdf.text('adrian@primarydm.com', margin, yPos);
+      yPos += 8;
+      
+      // HST Number
+      pdf.setTextColor(148, 163, 184); // #94a3b8
+      pdf.setFontSize(9);
+      pdf.text('HST#: 83023 3235 RT0001', margin, yPos);
+      
+      // Invoice title and details (right side)
+      pdf.setFontSize(16);
+      pdf.setTextColor(148, 163, 184);
+      pdf.text('INVOICE', pageWidth - margin, margin, { align: 'right' });
+      
+      pdf.setFontSize(10);
+      pdf.setTextColor(71, 85, 105); // #475569
+      let rightY = margin + 10;
+      pdf.text(`Invoice #: ${invoice.invoiceNumber}`, pageWidth - margin, rightY, { align: 'right' });
+      rightY += 5;
+      pdf.text(`Issue Date: ${format(parseISO(invoice.issueDate), 'MMMM dd, yyyy')}`, pageWidth - margin, rightY, { align: 'right' });
+      rightY += 5;
+      pdf.text(`Due Date: ${format(parseISO(invoice.dueDate), 'MMMM dd, yyyy')}`, pageWidth - margin, rightY, { align: 'right' });
+      
+      // Draw a line
+      yPos += 10;
+      pdf.setDrawColor(226, 232, 240); // #e2e8f0
+      pdf.line(margin, yPos, pageWidth - margin, yPos);
+      yPos += 10;
+      
+      // Bill To section
+      pdf.setFontSize(9);
+      pdf.setTextColor(148, 163, 184);
+      pdf.text('BILL TO', margin, yPos);
+      yPos += 5;
+      
+      pdf.setFontSize(11);
+      pdf.setTextColor(30, 41, 59); // #1e293b
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(invoice.customerName, margin, yPos);
+      pdf.setFont('helvetica', 'normal');
+      yPos += 5;
+      
+      pdf.setFontSize(10);
+      pdf.setTextColor(100, 116, 139);
+      const addressLines = (invoice.customerAddress || '').split('\n');
+      addressLines.forEach(line => {
+        if (line.trim()) {
+          pdf.text(line, margin, yPos);
+          yPos += 5;
+        }
       });
       
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const imgWidth = 210;
-      const pageHeight = 295;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      let heightLeft = imgHeight;
-      let position = 0;
-
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
-
-      while (heightLeft >= 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
+      yPos += 10;
+      
+      // Table header
+      pdf.setFillColor(250, 250, 250); // #fafafa
+      pdf.rect(margin, yPos - 5, pageWidth - (margin * 2), 10, 'F');
+      
+      pdf.setFontSize(9);
+      pdf.setTextColor(100, 116, 139);
+      pdf.text('DESCRIPTION', margin + 2, yPos);
+      pdf.text('QTY', pageWidth - 80, yPos);
+      pdf.text('UNIT PRICE', pageWidth - 55, yPos);
+      pdf.text('TOTAL', pageWidth - margin - 2, yPos, { align: 'right' });
+      
+      yPos += 12; // More space after header
+      
+      // Table rows
+      pdf.setFontSize(10);
+      invoice.lineItems.forEach((item, itemIndex) => {
+        pdf.setTextColor(71, 85, 105);
+        
+        // Wrap long descriptions
+        const descLines = pdf.splitTextToSize(item.description, pageWidth - 110);
+        descLines.forEach((line: string, index: number) => {
+          pdf.text(line, margin + 2, yPos);
+          if (index === 0) {
+            // Position qty, unit price, and total with more spacing
+            pdf.text(item.quantity.toString(), pageWidth - 80, yPos);
+            pdf.text(`$${item.unitPrice.toFixed(2)}`, pageWidth - 55, yPos);
+            pdf.setTextColor(51, 65, 85); // #334155
+            pdf.setFont('helvetica', 'bold');
+            pdf.text(`$${item.total.toFixed(2)}`, pageWidth - margin - 2, yPos, { align: 'right' });
+            pdf.setFont('helvetica', 'normal');
+          }
+          yPos += 5;
+        });
+        
+        // Draw line between items (but not after the last item)
+        if (itemIndex < invoice.lineItems.length - 1) {
+          yPos += 2;
+          pdf.setDrawColor(241, 245, 249); // #f1f5f9
+          pdf.line(margin, yPos, pageWidth - margin, yPos);
+          yPos += 5;
+        } else {
+          yPos += 3;
+        }
+      });
+      
+      // Summary section
+      yPos += 10;
+      const summaryX = pageWidth - 85;
+      
+      pdf.setFontSize(10);
+      pdf.setTextColor(100, 116, 139);
+      pdf.text('Subtotal:', summaryX, yPos);
+      pdf.setTextColor(51, 65, 85);
+      pdf.text(`$${invoice.subtotal.toFixed(2)}`, pageWidth - margin - 2, yPos, { align: 'right' });
+      yPos += 7;
+      
+      pdf.setTextColor(100, 116, 139);
+      pdf.text(`HST (${(invoice.hstRate * 100).toFixed(1)}%):`, summaryX, yPos);
+      pdf.setTextColor(51, 65, 85);
+      pdf.text(`$${invoice.hstAmount.toFixed(2)}`, pageWidth - margin - 2, yPos, { align: 'right' });
+      yPos += 7;
+      
+      // Total line
+      pdf.setDrawColor(226, 232, 240);
+      pdf.line(summaryX - 5, yPos - 2, pageWidth - margin, yPos - 2);
+      yPos += 5;
+      
+      pdf.setFontSize(12);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setTextColor(30, 41, 59);
+      pdf.text('Total:', summaryX, yPos);
+      pdf.text(`$${invoice.totalAmount.toFixed(2)}`, pageWidth - margin - 2, yPos, { align: 'right' });
+      pdf.setFont('helvetica', 'normal');
+      
+      // Notes section if present
+      if (invoice.notes) {
+        yPos += 15;
+        pdf.setFontSize(9);
+        pdf.setTextColor(148, 163, 184);
+        pdf.text('NOTES', margin, yPos);
+        yPos += 5;
+        
+        pdf.setFontSize(10);
+        pdf.setTextColor(100, 116, 139);
+        const noteLines = pdf.splitTextToSize(invoice.notes, pageWidth - (margin * 2));
+        noteLines.forEach((line: string) => {
+          pdf.text(line, margin, yPos);
+          yPos += 5;
+        });
       }
-
+      
+      // Footer
+      yPos = pageHeight - 25;
+      pdf.setDrawColor(241, 245, 249);
+      pdf.line(margin, yPos, pageWidth - margin, yPos);
+      yPos += 8;
+      
+      pdf.setFontSize(9);
+      pdf.setTextColor(100, 116, 139);
+      pdf.text('Thank you for your business!', pageWidth / 2, yPos, { align: 'center' });
+      yPos += 5;
+      pdf.text('Payment due within 30 days of invoice date.', pageWidth / 2, yPos, { align: 'center' });
+      
+      // Save the PDF
       pdf.save(`Invoice-${invoice.invoiceNumber}.pdf`);
     } catch (error) {
       console.error('Error generating PDF:', error);
