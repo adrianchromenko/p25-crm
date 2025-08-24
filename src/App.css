@@ -449,6 +449,20 @@
   color: var(--text-secondary);
 }
 
+.bill-collection-date {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  font-size: 14px;
+  color: #10b981;
+  font-weight: 500;
+}
+
+.bill-collection-date .collection-icon {
+  color: #10b981;
+}
+
 .bill-meta {
   display: flex;
   gap: 8px;

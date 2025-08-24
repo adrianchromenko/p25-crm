@@ -43,6 +43,7 @@ interface PendingBill {
   total: number;
   notes: string;
   dueDate: string;
+  expectedCollectionDate?: string;
   status: 'pending' | 'ready_to_invoice' | 'converted';
   priority: 'low' | 'medium' | 'high';
   createdAt?: Timestamp;
@@ -66,6 +67,7 @@ const Billing: React.FC = () => {
     total: 0,
     notes: '',
     dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 days from now
+    expectedCollectionDate: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 45 days from now
     status: 'pending',
     priority: 'medium'
   });
@@ -154,6 +156,7 @@ const Billing: React.FC = () => {
         total: 0,
         notes: '',
         dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        expectedCollectionDate: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         status: 'pending',
         priority: 'medium'
       });
@@ -285,6 +288,13 @@ const Billing: React.FC = () => {
               Due: {bill.dueDate ? format(new Date(bill.dueDate), 'MMM dd, yyyy') : 'Not set'}
             </div>
 
+            {bill.expectedCollectionDate && (
+              <div className="bill-collection-date">
+                <CalendarIcon size={16} className="collection-icon" />
+                Expected: {format(new Date(bill.expectedCollectionDate), 'MMM dd, yyyy')}
+              </div>
+            )}
+
             <div className="bill-meta">
               <span className={`bill-status ${getStatusColor(bill.status)}`}>
                 {bill.status.replace('_', ' ')}
@@ -353,6 +363,16 @@ const Billing: React.FC = () => {
                     value={billFormData.dueDate || ''}
                     onChange={(e) => setBillFormData({ ...billFormData, dueDate: e.target.value })}
                     required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Expected Collection Date</label>
+                  <input
+                    type="date"
+                    value={billFormData.expectedCollectionDate || ''}
+                    onChange={(e) => setBillFormData({ ...billFormData, expectedCollectionDate: e.target.value })}
+                    placeholder="When do you expect to collect payment?"
                   />
                 </div>
 
