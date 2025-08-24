@@ -6,6 +6,8 @@ import Layout from './components/Layout';
 import PrivateRoute from './components/PrivateRoute';
 import Dashboard from './pages/Dashboard';
 import CustomersWithWebsites from './pages/CustomersWithWebsites';
+import Tasks from './pages/Tasks';
+import Proposals from './pages/Proposals';
 import Billing from './pages/Billing';
 import Payments from './pages/Payments';
 import Invoices from './pages/Invoices';
@@ -31,6 +33,8 @@ function App() {
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="customers" element={<CustomersWithWebsites />} />
+            <Route path="tasks" element={<Tasks />} />
+            <Route path="proposals" element={<Proposals />} />
             <Route path="billing" element={<Billing />} />
             <Route path="payments" element={<Payments />} />
             <Route path="invoices" element={<Invoices />} />

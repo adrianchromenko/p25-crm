@@ -119,27 +119,38 @@ class EmailService {
         const eventDateTime = new Date(`${event.startDate}T${event.startTime}`);
         
         event.reminders.forEach(async (reminder, index: number) => {
-          if (reminder.sent) return;
+          try {
+            if (reminder.sent) return;
 
-          const reminderTime = new Date(eventDateTime.getTime() - this.parseReminderTime(reminder.time));
-          
-          if (now >= reminderTime && now <= new Date(reminderTime.getTime() + 60000)) {
-            await this.sendEmailNotification({
-              to: 'adrian@primarydm.com', // Default email - could be made configurable
-              subject: `Reminder: ${event.title}`,
-              body: this.generateEmailBody(event, reminder),
-              eventTitle: event.title,
-              eventDate: event.startDate,
-              eventTime: event.startTime
-            });
+            const parsedReminderTime = this.parseReminderTime(reminder.time);
+            if (parsedReminderTime === 0) {
+              console.warn('Skipping reminder with invalid time:', reminder.time);
+              return;
+            }
 
-            // Mark reminder as sent
-            const updatedReminders = [...event.reminders];
-            updatedReminders[index] = { ...reminder, sent: true };
+            const reminderTime = new Date(eventDateTime.getTime() - parsedReminderTime);
             
-            await updateDoc(doc(db, 'calendar_events', event.id), {
-              reminders: updatedReminders
-            });
+            if (now >= reminderTime && now <= new Date(reminderTime.getTime() + 60000)) {
+              await this.sendEmailNotification({
+                to: 'adrian@primarydm.com', // Default email - could be made configurable
+                subject: `Reminder: ${event.title}`,
+                body: this.generateEmailBody(event, reminder),
+                eventTitle: event.title,
+                eventDate: event.startDate,
+                eventTime: event.startTime
+              });
+
+              // Mark reminder as sent
+              const updatedReminders = [...event.reminders];
+              updatedReminders[index] = { ...reminder, sent: true };
+              
+              await updateDoc(doc(db, 'calendar_events', event.id), {
+                reminders: updatedReminders
+              });
+            }
+          } catch (error) {
+            console.error('Error processing reminder for event', event.id, ':', error);
+            console.error('Reminder data:', reminder);
           }
         });
       });
@@ -148,9 +159,26 @@ class EmailService {
     }
   }
 
-  private parseReminderTime(timeStr: string): number {
-    const match = timeStr.match(/(\d+)\s*(minute|hour|day)s?/i);
-    if (!match) return 0;
+  private parseReminderTime(timeStr: any): number {
+    // Ensure timeStr is a string
+    if (timeStr === null || timeStr === undefined) {
+      console.warn('parseReminderTime: timeStr is null or undefined');
+      return 0;
+    }
+    
+    // Convert to string if it's not already
+    const timeString = String(timeStr);
+    
+    // If it's a number, assume it's already in milliseconds
+    if (!isNaN(Number(timeString)) && Number(timeString) > 0) {
+      return Number(timeString);
+    }
+    
+    const match = timeString.match(/(\d+)\s*(minute|hour|day)s?/i);
+    if (!match) {
+      console.warn('parseReminderTime: Could not parse time string:', timeString);
+      return 0;
+    }
 
     const value = parseInt(match[1]);
     const unit = match[2].toLowerCase();

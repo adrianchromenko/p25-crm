@@ -8,7 +8,8 @@ import {
   doc,
   query,
   orderBy,
-  Timestamp 
+  Timestamp,
+  writeBatch
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { emailService } from '../services/emailService';
@@ -21,7 +22,8 @@ import {
   ChevronRight,
   Bell,
   Settings as SettingsIcon,
-  Calendar as CalendarIcon
+  Calendar as CalendarIcon,
+  Repeat
 } from 'lucide-react';
 import { format, 
   startOfMonth, 
@@ -50,6 +52,7 @@ interface CalendarEvent {
   type: 'meeting' | 'call' | 'deadline' | 'personal' | 'other';
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
+  repeatEventId?: string; // Links to repeat event that created this event
 }
 
 interface Reminder {
@@ -65,6 +68,27 @@ interface ReminderTemplate {
   reminders: Omit<Reminder, 'id'>[];
 }
 
+interface RepeatEvent {
+  id?: string;
+  title: string;
+  description: string;
+  startTime: string;
+  endTime: string;
+  type: 'meeting' | 'call' | 'deadline' | 'personal' | 'other';
+  reminders: Reminder[];
+  recurrence: {
+    frequency: 'daily' | 'weekly' | 'monthly' | 'yearly';
+    interval: number; // Every X days/weeks/months/years
+    daysOfWeek?: number[]; // For weekly: [0=Sunday, 1=Monday, ...]
+    dayOfMonth?: number; // For monthly: 1-31
+    endDate?: string; // Optional end date for recurrence
+    occurrences?: number; // Optional: number of occurrences
+  };
+  active: boolean;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
+}
+
 const Calendar: React.FC = () => {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [reminderTemplates, setReminderTemplates] = useState<ReminderTemplate[]>([]);
@@ -72,7 +96,10 @@ const Calendar: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [showEventModal, setShowEventModal] = useState(false);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [showRepeatEventModal, setShowRepeatEventModal] = useState(false);
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
+  const [editingRepeatEvent, setEditingRepeatEvent] = useState<RepeatEvent | null>(null);
+  const [repeatEvents, setRepeatEvents] = useState<RepeatEvent[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [eventFormData, setEventFormData] = useState<Partial<CalendarEvent>>({
@@ -84,6 +111,21 @@ const Calendar: React.FC = () => {
     endTime: '10:00',
     type: 'meeting',
     reminders: []
+  });
+
+  const [repeatEventFormData, setRepeatEventFormData] = useState<Partial<RepeatEvent>>({
+    title: '',
+    description: '',
+    startTime: '09:00',
+    endTime: '10:00',
+    type: 'meeting',
+    reminders: [],
+    recurrence: {
+      frequency: 'weekly',
+      interval: 1,
+      daysOfWeek: [1], // Default to Monday
+    },
+    active: true
   });
 
   const [newTemplate, setNewTemplate] = useState<Partial<ReminderTemplate>>({
@@ -106,9 +148,10 @@ const Calendar: React.FC = () => {
 
   const fetchData = async () => {
     try {
-      const [eventsSnapshot, templatesSnapshot] = await Promise.all([
+      const [eventsSnapshot, templatesSnapshot, repeatEventsSnapshot] = await Promise.all([
         getDocs(query(collection(db, 'calendar_events'), orderBy('startDate', 'asc'))),
-        getDocs(collection(db, 'reminder_templates'))
+        getDocs(collection(db, 'reminder_templates')),
+        getDocs(query(collection(db, 'repeat_events'), orderBy('createdAt', 'desc')))
       ]);
 
       const eventsData: CalendarEvent[] = [];
@@ -119,6 +162,11 @@ const Calendar: React.FC = () => {
       const templatesData: ReminderTemplate[] = [];
       templatesSnapshot.forEach((doc) => {
         templatesData.push({ id: doc.id, ...doc.data() } as ReminderTemplate);
+      });
+
+      const repeatEventsData: RepeatEvent[] = [];
+      repeatEventsSnapshot.forEach((doc) => {
+        repeatEventsData.push({ id: doc.id, ...doc.data() } as RepeatEvent);
       });
 
       // Add default templates if none exist
@@ -150,6 +198,7 @@ const Calendar: React.FC = () => {
 
       setEvents(eventsData);
       setReminderTemplates(templatesData);
+      setRepeatEvents(repeatEventsData);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -185,6 +234,146 @@ const Calendar: React.FC = () => {
     }
   };
 
+  // Generate calendar events from repeat event rules
+  const generateEventsFromRepeatEvent = async (repeatEvent: RepeatEvent) => {
+    if (!repeatEvent.active) return 0;
+
+    const now = new Date();
+    const { recurrence } = repeatEvent;
+    const events: Omit<CalendarEvent, 'id'>[] = [];
+    
+    // Generate events for the next 6 months or until max occurrences/end date
+    const maxDate = recurrence.endDate ? new Date(recurrence.endDate) : new Date(now.getFullYear(), now.getMonth() + 6, now.getDate());
+    const maxOccurrences = recurrence.occurrences || 100; // Default max for safety
+    
+    let currentDate = new Date(now);
+    let occurrenceCount = 0;
+
+    while (currentDate <= maxDate && occurrenceCount < maxOccurrences) {
+      let shouldAddEvent = false;
+      let nextDate = new Date(currentDate);
+      
+      switch (recurrence.frequency) {
+        case 'daily':
+          shouldAddEvent = true;
+          nextDate.setDate(currentDate.getDate() + recurrence.interval);
+          break;
+          
+        case 'weekly':
+          const dayOfWeek = currentDate.getDay();
+          const dayOfWeekAdjusted = dayOfWeek === 0 ? 7 : dayOfWeek; // Convert Sunday (0) to 7
+          
+          if (recurrence.daysOfWeek && recurrence.daysOfWeek.includes(dayOfWeekAdjusted)) {
+            shouldAddEvent = true;
+          }
+          
+          // Move to next day
+          nextDate.setDate(currentDate.getDate() + 1);
+          
+          // If we've completed a week cycle for this interval
+          if (dayOfWeek === 0 && recurrence.interval > 1) {
+            nextDate.setDate(currentDate.getDate() + (recurrence.interval - 1) * 7);
+          }
+          break;
+          
+        case 'monthly':
+          shouldAddEvent = true;
+          nextDate.setMonth(currentDate.getMonth() + recurrence.interval);
+          break;
+          
+        case 'yearly':
+          shouldAddEvent = true;
+          nextDate.setFullYear(currentDate.getFullYear() + recurrence.interval);
+          break;
+      }
+
+      if (shouldAddEvent && currentDate >= now) {
+        const eventDate = currentDate.toISOString().split('T')[0];
+        
+        // Check if event already exists for this date
+        const existingEvent = events.find((event: CalendarEvent) => 
+          event.startDate === eventDate && 
+          event.title === repeatEvent.title &&
+          event.repeatEventId === repeatEvent.id
+        );
+        
+        if (!existingEvent) {
+          events.push({
+            title: repeatEvent.title,
+            description: repeatEvent.description,
+            startDate: eventDate,
+            endDate: eventDate,
+            startTime: repeatEvent.startTime,
+            endTime: repeatEvent.endTime,
+            type: repeatEvent.type,
+            reminders: repeatEvent.reminders,
+            repeatEventId: repeatEvent.id,
+            createdAt: Timestamp.now(),
+            updatedAt: Timestamp.now()
+          });
+          occurrenceCount++;
+        }
+      }
+
+      currentDate = nextDate;
+    }
+
+    // Save generated events to Firestore
+    const batch = writeBatch(db);
+    events.forEach(event => {
+      const docRef = doc(collection(db, 'calendar_events'));
+      batch.set(docRef, event);
+    });
+    
+    if (events.length > 0) {
+      await batch.commit();
+    }
+    
+    return events.length;
+  };
+
+  const handleRepeatEventSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const repeatEventData = {
+        ...repeatEventFormData,
+        reminders: repeatEventFormData.reminders || [],
+        active: repeatEventFormData.active !== false // Default to true if not specified
+      };
+
+      let repeatEventId: string;
+      
+      if (editingRepeatEvent) {
+        await updateDoc(doc(db, 'repeat_events', editingRepeatEvent.id!), {
+          ...repeatEventData,
+          updatedAt: Timestamp.now(),
+        });
+        repeatEventId = editingRepeatEvent.id!;
+      } else {
+        const docRef = await addDoc(collection(db, 'repeat_events'), {
+          ...repeatEventData,
+          createdAt: Timestamp.now(),
+          updatedAt: Timestamp.now(),
+        });
+        repeatEventId = docRef.id;
+      }
+
+      // Generate calendar events if active
+      if (repeatEventData.active) {
+        const eventCount = await generateEventsFromRepeatEvent({
+          ...repeatEventData,
+          id: repeatEventId
+        } as RepeatEvent);
+        console.log(`Generated ${eventCount} calendar events from repeat event`);
+      }
+      
+      fetchData();
+      closeRepeatEventModal();
+    } catch (error) {
+      console.error('Error saving repeat event:', error);
+    }
+  };
+
   const handleDeleteEvent = async (id: string) => {
     if (window.confirm('Are you sure you want to delete this event?')) {
       try {
@@ -192,6 +381,17 @@ const Calendar: React.FC = () => {
         fetchData();
       } catch (error) {
         console.error('Error deleting event:', error);
+      }
+    }
+  };
+
+  const handleDeleteRepeatEvent = async (id: string) => {
+    if (window.confirm('Are you sure you want to delete this repeat event? This will stop creating future occurrences.')) {
+      try {
+        await deleteDoc(doc(db, 'repeat_events', id));
+        fetchData();
+      } catch (error) {
+        console.error('Error deleting repeat event:', error);
       }
     }
   };
@@ -220,6 +420,35 @@ const Calendar: React.FC = () => {
   const closeEventModal = () => {
     setShowEventModal(false);
     setEditingEvent(null);
+  };
+
+  const openRepeatEventModal = (repeatEvent?: RepeatEvent) => {
+    if (repeatEvent) {
+      setEditingRepeatEvent(repeatEvent);
+      setRepeatEventFormData(repeatEvent);
+    } else {
+      setEditingRepeatEvent(null);
+      setRepeatEventFormData({
+        title: '',
+        description: '',
+        startTime: '09:00',
+        endTime: '10:00',
+        type: 'meeting',
+        reminders: [],
+        recurrence: {
+          frequency: 'weekly',
+          interval: 1,
+          daysOfWeek: [1], // Default to Monday
+        },
+        active: true
+      });
+    }
+    setShowRepeatEventModal(true);
+  };
+
+  const closeRepeatEventModal = () => {
+    setShowRepeatEventModal(false);
+    setEditingRepeatEvent(null);
   };
 
   const applyReminderTemplate = (templateId: string) => {
@@ -394,12 +623,7 @@ const Calendar: React.FC = () => {
     <>
       <NotificationPermission />
       <div className="calendar-page">
-      <div className="page-header">
-        <div>
-          <h1>Calendar</h1>
-          <p>Manage your events and appointments</p>
-        </div>
-        <div className="header-actions">
+        <div className="calendar-header-actions">
           <button 
             className="btn-secondary" 
             onClick={() => {
@@ -423,12 +647,18 @@ const Calendar: React.FC = () => {
             <SettingsIcon size={20} />
             Reminder Templates
           </button>
+          <button 
+            className="btn-secondary" 
+            onClick={() => openRepeatEventModal()}
+          >
+            <Repeat size={20} />
+            Repeat Event
+          </button>
           <button className="btn-primary" onClick={() => openEventModal()}>
             <Plus size={20} />
             Add Event
           </button>
         </div>
-      </div>
 
       {/* Calendar Navigation */}
       <div className="calendar-nav">
@@ -490,7 +720,10 @@ const Calendar: React.FC = () => {
                       }}
                     >
                       <span className="event-time">{event.startTime}</span>
-                      <span className="event-title">{event.title}</span>
+                      <span className="event-title">
+                        {event.repeatEventId && <Repeat size={12} className="repeat-icon" />}
+                        {event.title}
+                      </span>
                     </div>
                   ))}
                   {dayEvents.length > 3 && (
@@ -870,6 +1103,224 @@ const Calendar: React.FC = () => {
                 </div>
               </form>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Repeat Event Modal */}
+      {showRepeatEventModal && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h2>{editingRepeatEvent ? 'Edit' : 'Create'} Repeat Event</h2>
+              <button onClick={closeRepeatEventModal}>
+                <X size={24} />
+              </button>
+            </div>
+
+            <form onSubmit={handleRepeatEventSubmit}>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Event Title *</label>
+                  <input
+                    type="text"
+                    value={repeatEventFormData.title || ''}
+                    onChange={(e) => setRepeatEventFormData({ 
+                      ...repeatEventFormData, 
+                      title: e.target.value 
+                    })}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Type</label>
+                  <select
+                    value={repeatEventFormData.type || 'meeting'}
+                    onChange={(e) => setRepeatEventFormData({ 
+                      ...repeatEventFormData, 
+                      type: e.target.value as CalendarEvent['type']
+                    })}
+                  >
+                    <option value="meeting">Meeting</option>
+                    <option value="call">Call</option>
+                    <option value="deadline">Deadline</option>
+                    <option value="personal">Personal</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label>Description</label>
+                <textarea
+                  value={repeatEventFormData.description || ''}
+                  onChange={(e) => setRepeatEventFormData({ 
+                    ...repeatEventFormData, 
+                    description: e.target.value 
+                  })}
+                  rows={3}
+                />
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Start Time</label>
+                  <input
+                    type="time"
+                    value={repeatEventFormData.startTime || '09:00'}
+                    onChange={(e) => setRepeatEventFormData({ 
+                      ...repeatEventFormData, 
+                      startTime: e.target.value 
+                    })}
+                  />
+                </div>
+                <div className="form-group">
+                  <label>End Time</label>
+                  <input
+                    type="time"
+                    value={repeatEventFormData.endTime || '10:00'}
+                    onChange={(e) => setRepeatEventFormData({ 
+                      ...repeatEventFormData, 
+                      endTime: e.target.value 
+                    })}
+                  />
+                </div>
+              </div>
+
+              <div className="form-section">
+                <h3>Recurrence Settings</h3>
+                
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Repeat Every</label>
+                    <select
+                      value={repeatEventFormData.recurrence?.frequency || 'weekly'}
+                      onChange={(e) => setRepeatEventFormData({
+                        ...repeatEventFormData,
+                        recurrence: {
+                          ...repeatEventFormData.recurrence!,
+                          frequency: e.target.value as RepeatEvent['recurrence']['frequency']
+                        }
+                      })}
+                    >
+                      <option value="daily">Daily</option>
+                      <option value="weekly">Weekly</option>
+                      <option value="monthly">Monthly</option>
+                      <option value="yearly">Yearly</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Every</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="365"
+                      value={repeatEventFormData.recurrence?.interval || 1}
+                      onChange={(e) => setRepeatEventFormData({
+                        ...repeatEventFormData,
+                        recurrence: {
+                          ...repeatEventFormData.recurrence!,
+                          interval: parseInt(e.target.value)
+                        }
+                      })}
+                    />
+                    <small>
+                      {repeatEventFormData.recurrence?.frequency === 'daily' && 'day(s)'}
+                      {repeatEventFormData.recurrence?.frequency === 'weekly' && 'week(s)'}
+                      {repeatEventFormData.recurrence?.frequency === 'monthly' && 'month(s)'}
+                      {repeatEventFormData.recurrence?.frequency === 'yearly' && 'year(s)'}
+                    </small>
+                  </div>
+                </div>
+
+                {repeatEventFormData.recurrence?.frequency === 'weekly' && (
+                  <div className="form-group">
+                    <label>Days of the Week</label>
+                    <div className="days-of-week">
+                      {['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map((day, index) => (
+                        <label key={index} className="checkbox-label">
+                          <input
+                            type="checkbox"
+                            checked={repeatEventFormData.recurrence?.daysOfWeek?.includes(index) || false}
+                            onChange={(e) => {
+                              const daysOfWeek = repeatEventFormData.recurrence?.daysOfWeek || [];
+                              const newDaysOfWeek = e.target.checked
+                                ? [...daysOfWeek, index]
+                                : daysOfWeek.filter(d => d !== index);
+                              
+                              setRepeatEventFormData({
+                                ...repeatEventFormData,
+                                recurrence: {
+                                  ...repeatEventFormData.recurrence!,
+                                  daysOfWeek: newDaysOfWeek
+                                }
+                              });
+                            }}
+                          />
+                          <span>{day.substring(0, 3)}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>End Date (Optional)</label>
+                    <input
+                      type="date"
+                      value={repeatEventFormData.recurrence?.endDate || ''}
+                      onChange={(e) => setRepeatEventFormData({
+                        ...repeatEventFormData,
+                        recurrence: {
+                          ...repeatEventFormData.recurrence!,
+                          endDate: e.target.value || undefined
+                        }
+                      })}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Max Occurrences (Optional)</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="1000"
+                      value={repeatEventFormData.recurrence?.occurrences || ''}
+                      onChange={(e) => setRepeatEventFormData({
+                        ...repeatEventFormData,
+                        recurrence: {
+                          ...repeatEventFormData.recurrence!,
+                          occurrences: e.target.value ? parseInt(e.target.value) : undefined
+                        }
+                      })}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={repeatEventFormData.active || true}
+                    onChange={(e) => setRepeatEventFormData({
+                      ...repeatEventFormData,
+                      active: e.target.checked
+                    })}
+                  />
+                  <span>Active (will create calendar events)</span>
+                </label>
+              </div>
+
+              <div className="modal-actions">
+                <button type="button" className="btn-secondary" onClick={closeRepeatEventModal}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn-primary">
+                  {editingRepeatEvent ? 'Update' : 'Create'} Repeat Event
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

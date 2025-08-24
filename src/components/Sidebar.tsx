@@ -10,12 +10,14 @@ import {
   CreditCard,
   FileText,
   Calendar,
-  Receipt
+  Receipt,
+  CheckSquare,
+  FileEdit
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const Sidebar: React.FC = () => {
-  const { signOut } = useAuth();
+  const { signOut, currentUser } = useAuth();
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
@@ -30,7 +32,9 @@ const Sidebar: React.FC = () => {
   const menuItems = [
     { path: '/dashboard', name: 'Dashboard', icon: <LayoutDashboard size={20} /> },
     { path: '/calendar', name: 'Calendar', icon: <Calendar size={20} /> },
+    { path: '/tasks', name: 'Tasks', icon: <CheckSquare size={20} /> },
     { path: '/customers', name: 'Customers', icon: <Users size={20} /> },
+    { path: '/proposals', name: 'Proposals', icon: <FileEdit size={20} /> },
     { path: '/billing', name: 'Billing', icon: <Receipt size={20} /> },
     { path: '/payments', name: 'Payments', icon: <CreditCard size={20} /> },
     { path: '/invoices', name: 'Invoices', icon: <FileText size={20} /> },
@@ -61,6 +65,9 @@ const Sidebar: React.FC = () => {
       </nav>
 
       <div className="sidebar-footer">
+        <div className="user-info">
+          <span className="user-email">{currentUser?.email}</span>
+        </div>
         <button className="sign-out-btn" onClick={handleSignOut}>
           <LogOut size={20} />
           <span>Sign Out</span>
