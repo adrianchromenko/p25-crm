@@ -8,7 +8,9 @@ import {
   LogOut,
   Building2,
   CreditCard,
-  FileText
+  FileText,
+  Calendar,
+  Receipt
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -27,7 +29,9 @@ const Sidebar: React.FC = () => {
 
   const menuItems = [
     { path: '/dashboard', name: 'Dashboard', icon: <LayoutDashboard size={20} /> },
+    { path: '/calendar', name: 'Calendar', icon: <Calendar size={20} /> },
     { path: '/customers', name: 'Customers', icon: <Users size={20} /> },
+    { path: '/billing', name: 'Billing', icon: <Receipt size={20} /> },
     { path: '/payments', name: 'Payments', icon: <CreditCard size={20} /> },
     { path: '/invoices', name: 'Invoices', icon: <FileText size={20} /> },
     { path: '/services', name: 'Services', icon: <Package size={20} /> },

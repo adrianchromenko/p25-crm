@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { updatePassword, updateEmail } from 'firebase/auth';
 import { User, Mail, Lock, Bell, Shield, Save } from 'lucide-react';
+import EmailSettings from '../components/EmailSettings';
 
 const Settings: React.FC = () => {
   const { currentUser } = useAuth();
@@ -182,6 +183,9 @@ const Settings: React.FC = () => {
           {activeTab === 'notifications' && (
             <div className="tab-content">
               <h2>Notification Preferences</h2>
+              
+              <EmailSettings />
+              
               <form onSubmit={handleNotificationUpdate}>
                 <div className="notification-settings">
                   <label className="checkbox-label">
