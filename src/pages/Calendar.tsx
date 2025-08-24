@@ -681,7 +681,7 @@ const Calendar: React.FC = () => {
 
       {/* Calendar Grid */}
       <div className="calendar-container">
-        <div className="calendar-grid">
+        <div className="main-calendar-grid">
           {/* Day Headers */}
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
             <div key={day} className="calendar-day-header">

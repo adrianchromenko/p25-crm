@@ -50,10 +50,26 @@ interface PendingBill {
   updatedAt?: Timestamp;
 }
 
+interface Expense {
+  id?: string;
+  title: string;
+  description: string;
+  amount: number;
+  category: string;
+  date: string;
+  vendor?: string;
+  notes?: string;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
+}
+
 const Billing: React.FC = () => {
   const [bills, setBills] = useState<PendingBill[]>([]);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
   const [showBillModal, setShowBillModal] = useState(false);
+  const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [editingBill, setEditingBill] = useState<PendingBill | null>(null);
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [loading, setLoading] = useState(true);
 
   const [billFormData, setBillFormData] = useState<Partial<PendingBill>>({
@@ -72,8 +88,19 @@ const Billing: React.FC = () => {
     priority: 'medium'
   });
 
+  const [expenseFormData, setExpenseFormData] = useState<Partial<Expense>>({
+    title: '',
+    description: '',
+    amount: 0,
+    category: 'Office',
+    date: new Date().toISOString().split('T')[0],
+    vendor: '',
+    notes: ''
+  });
+
   useEffect(() => {
     fetchBills();
+    fetchExpenses();
   }, []);
 
   const fetchBills = async () => {
@@ -90,6 +117,21 @@ const Billing: React.FC = () => {
       console.error('Error fetching bills:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchExpenses = async () => {
+    try {
+      const expensesSnapshot = await getDocs(
+        query(collection(db, 'expenses'), orderBy('date', 'desc'))
+      );
+      const expensesData: Expense[] = [];
+      expensesSnapshot.forEach((doc) => {
+        expensesData.push({ id: doc.id, ...doc.data() } as Expense);
+      });
+      setExpenses(expensesData);
+    } catch (error) {
+      console.error('Error fetching expenses:', error);
     }
   };
 
@@ -235,6 +277,66 @@ const Billing: React.FC = () => {
     }
   };
 
+  const openExpenseModal = (expense?: Expense) => {
+    if (expense) {
+      setEditingExpense(expense);
+      setExpenseFormData(expense);
+    } else {
+      setEditingExpense(null);
+      setExpenseFormData({
+        title: '',
+        description: '',
+        amount: 0,
+        category: 'Office',
+        date: new Date().toISOString().split('T')[0],
+        vendor: '',
+        notes: ''
+      });
+    }
+    setShowExpenseModal(true);
+  };
+
+  const closeExpenseModal = () => {
+    setShowExpenseModal(false);
+    setEditingExpense(null);
+  };
+
+  const saveExpense = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    try {
+      const expenseData = {
+        ...expenseFormData,
+        updatedAt: Timestamp.now()
+      };
+
+      if (editingExpense) {
+        await updateDoc(doc(db, 'expenses', editingExpense.id!), expenseData);
+      } else {
+        await addDoc(collection(db, 'expenses'), {
+          ...expenseData,
+          createdAt: Timestamp.now()
+        });
+      }
+
+      await fetchExpenses();
+      closeExpenseModal();
+    } catch (error) {
+      console.error('Error saving expense:', error);
+    }
+  };
+
+  const deleteExpense = async (expenseId: string) => {
+    if (window.confirm('Are you sure you want to delete this expense?')) {
+      try {
+        await deleteDoc(doc(db, 'expenses', expenseId));
+        await fetchExpenses();
+      } catch (error) {
+        console.error('Error deleting expense:', error);
+      }
+    }
+  };
+
   // Calculate collection amounts by date
   const getCollectionsForDate = (date: Date) => {
     return bills.filter(bill => 
@@ -247,6 +349,17 @@ const Billing: React.FC = () => {
   const getTotalCollectionForDate = (date: Date) => {
     const collections = getCollectionsForDate(date);
     return collections.reduce((sum, bill) => sum + (bill.total || 0), 0);
+  };
+
+  const getExpensesForDate = (date: Date) => {
+    return expenses.filter(expense => 
+      expense.date && isSameDay(new Date(expense.date), date)
+    );
+  };
+
+  const getTotalExpenseForDate = (date: Date) => {
+    const expensesForDate = getExpensesForDate(date);
+    return expensesForDate.reduce((sum, expense) => sum + (expense.amount || 0), 0);
   };
 
   // Generate calendar data for 3 months
@@ -311,10 +424,16 @@ const Billing: React.FC = () => {
           <h1>Billing</h1>
           <p>Track pending bills before converting them to invoices</p>
         </div>
-        <button className="btn-primary" onClick={() => openBillModal()}>
-          <Plus size={20} />
-          Add Bill
-        </button>
+        <div className="header-actions">
+          <button className="btn-secondary" onClick={() => openExpenseModal()}>
+            <Plus size={20} />
+            Add Expense
+          </button>
+          <button className="btn-primary" onClick={() => openBillModal()}>
+            <Plus size={20} />
+            Add Bill
+          </button>
+        </div>
       </div>
 
       {/* Collection Calendar */}
@@ -362,24 +481,36 @@ const Billing: React.FC = () => {
                   const collections = getCollectionsForDate(day);
                   const totalAmount = getTotalCollectionForDate(day);
                   const hasCollections = collections.length > 0;
+                  const expensesForDay = getExpensesForDate(day);
+                  const totalExpenses = getTotalExpenseForDate(day);
+                  const hasExpenses = expensesForDay.length > 0;
+                  const isToday = format(day, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
                   
                   return (
                     <div 
                       key={dayIndex} 
-                      className={`calendar-day ${hasCollections ? 'has-collections' : ''}`}
-                      title={hasCollections ? 
-                        `$${totalAmount.toFixed(2)} expected\n${collections.map(b => `${b.customerName}: $${b.total?.toFixed(2)}`).join('\n')}` 
-                        : ''
-                      }
+                      className={`calendar-day ${isToday ? 'today' : ''}`}
+                      title={[
+                        hasCollections && `Income: $${totalAmount.toFixed(2)}\n${collections.map(b => `${b.customerName}: $${b.total?.toFixed(2)}`).join('\n')}`,
+                        hasExpenses && `Expenses: $${totalExpenses.toFixed(2)}\n${expensesForDay.map(e => `${e.title}: $${e.amount?.toFixed(2)}`).join('\n')}`
+                      ].filter(Boolean).join('\n\n') || ''}
                     >
                       <div className="calendar-day-number">
                         {format(day, 'd')}
                       </div>
-                      {hasCollections && (
-                        <div className="calendar-day-amount">
-                          ${totalAmount > 1000 ? `${(totalAmount/1000).toFixed(1)}k` : totalAmount.toFixed(0)}
-                        </div>
-                      )}
+                      
+                      <div className="calendar-day-indicators">
+                        {hasCollections && (
+                          <div className="calendar-pill income-pill">
+                            +${totalAmount > 1000 ? `${(totalAmount/1000).toFixed(1)}k` : totalAmount.toFixed(0)}
+                          </div>
+                        )}
+                        {hasExpenses && (
+                          <div className="calendar-pill expense-pill">
+                            -${totalExpenses > 1000 ? `${(totalExpenses/1000).toFixed(1)}k` : totalExpenses.toFixed(0)}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
@@ -388,6 +519,7 @@ const Billing: React.FC = () => {
           ))}
         </div>
       </div>
+
 
       <div className="bills-list">
         {bills.map((bill) => (
@@ -653,6 +785,112 @@ const Billing: React.FC = () => {
                 </button>
                 <button type="submit" className="btn-primary">
                   {editingBill ? 'Update Bill' : 'Create Bill'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Expense Modal */}
+      {showExpenseModal && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h2>{editingExpense ? 'Edit Expense' : 'Add New Expense'}</h2>
+              <button onClick={closeExpenseModal}>
+                <X size={24} />
+              </button>
+            </div>
+
+            <form onSubmit={saveExpense} className="expense-form">
+              <div className="form-grid">
+                <div className="form-group span-2">
+                  <label>Title *</label>
+                  <input
+                    type="text"
+                    value={expenseFormData.title || ''}
+                    onChange={(e) => setExpenseFormData({ ...expenseFormData, title: e.target.value })}
+                    required
+                    placeholder="Office supplies, Software license, etc."
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Amount *</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={expenseFormData.amount || 0}
+                    onChange={(e) => setExpenseFormData({ ...expenseFormData, amount: parseFloat(e.target.value) || 0 })}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Date *</label>
+                  <input
+                    type="date"
+                    value={expenseFormData.date || ''}
+                    onChange={(e) => setExpenseFormData({ ...expenseFormData, date: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Category</label>
+                  <select
+                    value={expenseFormData.category || 'Office'}
+                    onChange={(e) => setExpenseFormData({ ...expenseFormData, category: e.target.value })}
+                  >
+                    <option value="Office">Office</option>
+                    <option value="Software">Software</option>
+                    <option value="Travel">Travel</option>
+                    <option value="Marketing">Marketing</option>
+                    <option value="Equipment">Equipment</option>
+                    <option value="Utilities">Utilities</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label>Vendor</label>
+                  <input
+                    type="text"
+                    value={expenseFormData.vendor || ''}
+                    onChange={(e) => setExpenseFormData({ ...expenseFormData, vendor: e.target.value })}
+                    placeholder="Company or vendor name"
+                  />
+                </div>
+
+                <div className="form-group span-2">
+                  <label>Description</label>
+                  <textarea
+                    value={expenseFormData.description || ''}
+                    onChange={(e) => setExpenseFormData({ ...expenseFormData, description: e.target.value })}
+                    rows={2}
+                    placeholder="Brief description of the expense"
+                  />
+                </div>
+
+                <div className="form-group span-2">
+                  <label>Notes</label>
+                  <textarea
+                    value={expenseFormData.notes || ''}
+                    onChange={(e) => setExpenseFormData({ ...expenseFormData, notes: e.target.value })}
+                    rows={2}
+                    placeholder="Additional notes or comments"
+                  />
+                </div>
+              </div>
+
+              <div className="form-actions">
+                <button type="button" onClick={closeExpenseModal} className="btn-secondary">
+                  Cancel
+                </button>
+                <button type="submit" className="btn-primary">
+                  {editingExpense ? 'Update Expense' : 'Add Expense'}
                 </button>
               </div>
             </form>

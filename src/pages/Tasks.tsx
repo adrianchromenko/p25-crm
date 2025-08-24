@@ -59,6 +59,7 @@ interface Task {
   dueDate?: string;
   tags: string[];
   order: number;
+  daySection?: 'today' | 'tomorrow' | 'dayAfter' | null;
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
 }
@@ -150,7 +151,8 @@ const Tasks: React.FC = () => {
     color: '#3b82f6',
     dueDate: '',
     tags: [],
-    order: 0
+    order: 0,
+    daySection: null
   });
 
 
@@ -227,7 +229,8 @@ const Tasks: React.FC = () => {
         color: '#3b82f6',
         dueDate: '',
         tags: [],
-        order: tasks.length
+        order: tasks.length,
+        daySection: null
       });
     }
     setShowTaskModal(true);
@@ -371,6 +374,29 @@ const Tasks: React.FC = () => {
     setDragOverTask(null);
   };
 
+  const moveToDaySection = async (task: Task, daySection: 'today' | 'tomorrow' | 'dayAfter' | null) => {
+    try {
+      // Update local state
+      setTasks(prev => prev.map(t => 
+        t.id === task.id ? { ...t, daySection } : t
+      ));
+
+      // Update Firebase
+      await updateDoc(doc(db, 'tasks', task.id!), {
+        daySection,
+        updatedAt: Timestamp.now()
+      });
+
+      console.log(`Task moved to ${daySection || 'unscheduled'} section`);
+    } catch (error) {
+      console.error('Error moving task to day section:', error);
+      // Revert on error
+      fetchTasks();
+    }
+
+    setDraggedTask(null);
+  };
+
   const addTag = () => {
     if (newTag.trim() && !taskFormData.tags?.includes(newTag.trim())) {
       setTaskFormData({
@@ -492,99 +518,159 @@ const Tasks: React.FC = () => {
       )}
 
 
-      {/* Tasks List */}
-      <div className="tasks-list">
-        
-        {filteredTasks.map((task, index) => {
-          const category = getCategoryByName(task.category);
-          const isDraggable = sortBy === 'order';
-          const isBeingDragged = draggedTask?.id === task.id;
-          const isDragTarget = dragOverTask === task.id;
+      {/* Day Sections */}
+      <div className="task-sections">
+        {[
+          { key: 'today', title: 'Today', icon: '📅', getDate: () => new Date() },
+          { key: 'tomorrow', title: 'Tomorrow', icon: '⏰', getDate: () => {
+            const date = new Date();
+            date.setDate(date.getDate() + 1);
+            return date;
+          }},
+          { key: 'dayAfter', title: 'Day After Tomorrow', icon: '📆', getDate: () => {
+            const date = new Date();
+            date.setDate(date.getDate() + 2);
+            return date;
+          }},
+          { key: 'unscheduled', title: 'Unscheduled', icon: '📋', getDate: () => null }
+        ].map(section => {
+          const sectionTasks = filteredTasks.filter(task => 
+            section.key === 'unscheduled' 
+              ? !task.daySection || task.daySection === null
+              : task.daySection === section.key
+          );
+          
+          const sectionDate = section.getDate();
+          const dateString = sectionDate ? format(sectionDate, 'EEEE, MMM d') : null;
           
           return (
-            <div key={task.id} className="task-item-wrapper">
+            <div key={section.key} className="task-section">
+              <div className="section-header">
+                <span className="section-icon">{section.icon}</span>
+                <div className="section-title-container">
+                  <h3 className="section-title">{section.title}</h3>
+                  {dateString && <span className="section-date">({dateString})</span>}
+                </div>
+                <span className="section-count">({sectionTasks.length})</span>
+              </div>
+              
               <div 
-                className={`task-card ${task.status} ${
-                  isDraggable ? 'draggable' : ''
-                } ${
-                  isBeingDragged ? 'being-dragged' : ''
-                } ${
-                  isDragTarget ? 'drag-target' : ''
-                }`}
-                style={{ borderLeftColor: task.color }}
-                draggable={isDraggable}
-                onDragStart={isDraggable ? (e) => handleDragStart(e, task) : undefined}
-                onDragEnd={isDraggable ? handleDragEnd : undefined}
-                onDragOver={isDraggable ? (e) => handleDragOver(e, task) : undefined}
-                onDragLeave={isDraggable ? handleDragLeave : undefined}
-                onDrop={isDraggable ? (e) => handleDrop(e, task) : undefined}
+                className={`task-drop-zone ${section.key}`}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.currentTarget.classList.add('drag-over');
+                }}
+                onDragLeave={(e) => {
+                  e.currentTarget.classList.remove('drag-over');
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  e.currentTarget.classList.remove('drag-over');
+                  if (draggedTask) {
+                    moveToDaySection(draggedTask, section.key === 'unscheduled' ? null : section.key as 'today' | 'tomorrow' | 'dayAfter');
+                  }
+                }}
               >
-              <div className="task-main">
-                {isDraggable && (
-                  <div className="drag-handle" title="Drag to reorder">
-                    <GripVertical size={16} />
+                {sectionTasks.length === 0 && (
+                  <div className="empty-section">
+                    Drop tasks here or click "Add Task"
                   </div>
                 )}
                 
-                <div className="task-checkbox" onClick={() => toggleTaskStatus(task)}>
-                  {task.status === 'completed' ? 
-                    <CheckSquare size={20} style={{ color: statusColors.completed }} /> :
-                    <Square size={20} style={{ color: statusColors[task.status] }} />
-                  }
-                </div>
-
-                <div className="task-content">
-                  <div className="task-title">{task.title}</div>
-                  {task.description && (
-                    <div className="task-description">{task.description}</div>
-                  )}
+                {sectionTasks.map((task, index) => {
+                  const category = getCategoryByName(task.category);
+                  const isDraggable = sortBy === 'order';
+                  const isBeingDragged = draggedTask?.id === task.id;
+                  const isDragTarget = dragOverTask === task.id;
                   
-                  <div className="task-meta">
-                    {category && (
-                      <span className="task-category" style={{ color: category.color }}>
-                        {React.createElement(getIconComponent(category.icon), { size: 14 })} {category.name}
-                      </span>
-                    )}
-                    
-                    <span className={`task-priority priority-${task.priority}`}>
-                      <Flag size={14} />
-                      {task.priority}
-                    </span>
+                  return (
+                    <div key={task.id} className="task-item-wrapper">
+                      <div 
+                        className={`task-card ${task.status} ${
+                          isDraggable ? 'draggable' : ''
+                        } ${
+                          isBeingDragged ? 'being-dragged' : ''
+                        } ${
+                          isDragTarget ? 'drag-target' : ''
+                        }`}
+                        style={{ borderLeftColor: task.color }}
+                        draggable={isDraggable}
+                        onDragStart={isDraggable ? (e) => handleDragStart(e, task) : undefined}
+                        onDragEnd={isDraggable ? handleDragEnd : undefined}
+                        onDragOver={isDraggable ? (e) => handleDragOver(e, task) : undefined}
+                        onDragLeave={isDraggable ? handleDragLeave : undefined}
+                        onDrop={isDraggable ? (e) => handleDrop(e, task) : undefined}
+                      >
+                      <div className="task-main">
+                        {isDraggable && (
+                          <div className="drag-handle" title="Drag to reorder">
+                            <GripVertical size={16} />
+                          </div>
+                        )}
+                        
+                        <div className="task-checkbox" onClick={() => toggleTaskStatus(task)}>
+                          {task.status === 'completed' ? 
+                            <CheckSquare size={20} style={{ color: statusColors.completed }} /> :
+                            <Square size={20} style={{ color: statusColors[task.status] }} />
+                          }
+                        </div>
 
-                    <span className={`task-status status-${task.status}`}>
-                      <Circle size={14} />
-                      {task.status.replace('_', ' ')}
-                    </span>
+                        <div className="task-content">
+                          <div className="task-title">{task.title}</div>
+                          {task.description && (
+                            <div className="task-description">{task.description}</div>
+                          )}
+                          
+                          <div className="task-meta">
+                            {category && (
+                              <span className="task-category" style={{ color: category.color }}>
+                                {React.createElement(getIconComponent(category.icon), { size: 14 })} {category.name}
+                              </span>
+                            )}
+                            
+                            <span className={`task-priority priority-${task.priority}`}>
+                              <Flag size={14} />
+                              {task.priority}
+                            </span>
 
-                    {task.dueDate && (
-                      <span className="task-due-date">
-                        <CalendarIcon size={14} />
-                        {format(new Date(task.dueDate), 'MMM dd')}
-                      </span>
-                    )}
-                  </div>
+                            <span className={`task-status status-${task.status}`}>
+                              <Circle size={14} />
+                              {task.status.replace('_', ' ')}
+                            </span>
 
-                  {task.tags && task.tags.length > 0 && (
-                    <div className="task-tags">
-                      {task.tags.map(tag => (
-                        <span key={tag} className="task-tag">
-                          <Tag size={12} />
-                          {tag}
-                        </span>
-                      ))}
+                            {task.dueDate && (
+                              <span className="task-due-date">
+                                <CalendarIcon size={14} />
+                                {format(new Date(task.dueDate), 'MMM dd')}
+                              </span>
+                            )}
+                          </div>
+
+                          {task.tags && task.tags.length > 0 && (
+                            <div className="task-tags">
+                              {task.tags.map(tag => (
+                                <span key={tag} className="task-tag">
+                                  <Tag size={12} />
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="task-actions">
+                          <button onClick={() => openTaskModal(task)}>
+                            <Edit2 size={16} />
+                          </button>
+                          <button onClick={() => deleteTask(task.id!)}>
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </div>
+                      </div>
                     </div>
-                  )}
-                </div>
-
-                <div className="task-actions">
-                  <button onClick={() => openTaskModal(task)}>
-                    <Edit2 size={16} />
-                  </button>
-                  <button onClick={() => deleteTask(task.id!)}>
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              </div>
+                  );
+                })}
               </div>
             </div>
           );
@@ -677,6 +763,19 @@ const Tasks: React.FC = () => {
                     value={taskFormData.dueDate || ''}
                     onChange={(e) => setTaskFormData({ ...taskFormData, dueDate: e.target.value })}
                   />
+                </div>
+
+                <div className="form-group">
+                  <label>Schedule For</label>
+                  <select
+                    value={taskFormData.daySection || ''}
+                    onChange={(e) => setTaskFormData({ ...taskFormData, daySection: e.target.value as Task['daySection'] })}
+                  >
+                    <option value="">Unscheduled</option>
+                    <option value="today">Today</option>
+                    <option value="tomorrow">Tomorrow</option>
+                    <option value="dayAfter">Day After Tomorrow</option>
+                  </select>
                 </div>
 
                 <div className="form-group">
