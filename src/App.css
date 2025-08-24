@@ -353,6 +353,23 @@
 /* Billing Page Styles */
 .billing-page {
   padding: 24px;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
+}
+
+/* Mobile responsive styles for billing page */
+@media (max-width: 768px) {
+  .billing-page {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .billing-page {
+    padding: 12px;
+  }
 }
 
 .bills-grid {
@@ -463,55 +480,561 @@
   color: #10b981;
 }
 
-.bill-meta {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 16px;
+/* Collection Calendar - Clean Implementation */
+.collection-calendar-section {
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 16px;
+  border: 1px solid rgba(59, 130, 246, 0.1);
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
-.bill-status,
-.bill-priority {
-  padding: 4px 8px;
-  border-radius: 12px;
-  font-size: 12px;
+/* Header Section */
+.calendar-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1.5rem;
+  gap: 1rem;
+}
+
+.collection-calendar-section h2 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.collection-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  align-items: flex-end;
+}
+
+.summary-totals {
+  display: flex;
+  gap: 1rem;
+}
+
+.month-total {
+  text-align: center;
+  padding: 0.5rem 1rem;
+  background: rgba(59, 130, 246, 0.1);
+  border-radius: 8px;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.month-name {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
   font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
 }
 
+.month-amount {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #3b82f6;
+  margin-top: 0.25rem;
+}
+
+.grand-total {
+  padding: 0.75rem 1.5rem;
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+  border-radius: 8px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+}
+
+/* Calendar Grid */
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Individual Calendar */
+.calendar-month {
+  background: white;
+  border: 1px solid rgba(59, 130, 246, 0.1);
+  border-radius: 12px;
+  padding: 1rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  width: 100%;
+  min-width: 280px;
+  box-sizing: border-box;
+}
+
+.calendar-header {
+  text-align: center;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(59, 130, 246, 0.1);
+}
+
+.calendar-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* Calendar Days */
+.calendar-days-header {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1px;
+  margin-bottom: 0.5rem;
+  width: 100%;
+}
+
+.calendar-day-label {
+  text-align: center;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  padding: 0.25rem 0.1rem;
+  text-transform: uppercase;
+  min-width: 0;
+}
+
+.calendar-days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1px;
+  width: 100%;
+}
+
+.calendar-day {
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: rgba(248, 250, 252, 0.8);
+  border: 1px solid transparent;
+  min-height: 40px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.calendar-day.empty {
+  pointer-events: none;
+  background: transparent;
+}
+
+.calendar-day:not(.empty):hover {
+  background: rgba(59, 130, 246, 0.1);
+  transform: translateY(-1px);
+}
+
+.calendar-day.has-collections {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+}
+
+.calendar-day.has-collections:hover {
+  background: linear-gradient(135deg, #059669, #047857);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+}
+
+.calendar-day-number {
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+.calendar-day-amount {
+  font-size: 0.7rem;
+  font-weight: 700;
+  margin-top: 2px;
+  opacity: 0.9;
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+  .calendar-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .collection-calendar-section {
+    padding: 1rem;
+    margin-left: 0;
+    margin-right: 0;
+  }
+  
+  .calendar-section-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .collection-summary {
+    align-items: stretch;
+  }
+  
+  .summary-totals {
+    justify-content: space-between;
+  }
+  
+  .month-total {
+    flex: 1;
+  }
+  
+  .grand-total {
+    text-align: center;
+  }
+  
+  .calendar-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+  
+  .calendar-month {
+    padding: 0.75rem;
+    width: 100%;
+    min-width: 280px;
+    box-sizing: border-box;
+  }
+  
+  .calendar-header h3 {
+    font-size: 1rem;
+  }
+  
+  .calendar-day-label {
+    font-size: 0.65rem;
+    padding: 0.2rem 0.05rem;
+  }
+  
+  .calendar-day {
+    font-size: 0.7rem;
+    min-height: 35px;
+  }
+  
+  .calendar-day-number {
+    font-size: 0.85rem;
+  }
+  
+  .calendar-day-amount {
+    font-size: 0.65rem;
+  }
+}
+
+/* Bills List - Task-like Layout */
+.bills-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.bill-item {
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(59, 130, 246, 0.1);
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.bill-item:hover {
+  border-color: rgba(59, 130, 246, 0.2);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.bill-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  gap: 1rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.bill-left {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.bill-header-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.bill-number {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bill-status-badge,
+.bill-priority-badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.bill-content {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.bill-customer-info {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  overflow: hidden;
+}
+
+.customer-name {
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.customer-email {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bill-dates {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.bill-due {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.bill-expected {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: #10b981;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.bill-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-shrink: 0;
+}
+
+.bill-amount {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.1rem;
+  color: var(--text-primary);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.bill-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* Mobile responsive styles for bills */
+@media (max-width: 768px) {
+  .bill-main {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1rem;
+  }
+  
+  .bill-left {
+    width: 100%;
+  }
+  
+  .bill-right {
+    width: 100%;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  .bill-header-info {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  
+  .bill-content {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  
+  .bill-dates {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .bill-actions {
+    margin-top: 0.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .bill-main {
+    padding: 0.75rem;
+  }
+  
+  .bill-number {
+    font-size: 0.85rem;
+  }
+  
+  .bill-amount {
+    font-size: 1rem;
+  }
+  
+  .customer-name,
+  .customer-email {
+    font-size: 0.8rem;
+  }
+  
+  .bill-due,
+  .bill-expected {
+    font-size: 0.75rem;
+  }
+}
+
+.btn-sm {
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.btn-icon {
+  padding: 0.5rem;
+  border-radius: 4px;
+  border: none;
+  background: rgba(59, 130, 246, 0.1);
+  color: #3b82f6;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-icon:hover {
+  background: rgba(59, 130, 246, 0.2);
+}
+
+.btn-icon.btn-danger {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.btn-icon.btn-danger:hover {
+  background: rgba(239, 68, 68, 0.2);
+}
+
+/* Status and Priority Colors */
 .status-pending {
-  background: rgba(251, 191, 36, 0.1);
+  background: #fef3c7;
   color: #92400e;
 }
 
 .status-ready {
-  background: rgba(59, 130, 246, 0.1);
+  background: #dbeafe;
   color: #1e40af;
 }
 
 .status-converted {
-  background: rgba(16, 185, 129, 0.1);
-  color: #047857;
+  background: #d1fae5;
+  color: #065f46;
 }
 
 .priority-low {
-  background: rgba(156, 163, 175, 0.1);
+  background: #f3f4f6;
   color: #374151;
 }
 
 .priority-medium {
-  background: rgba(251, 191, 36, 0.1);
+  background: #fef3c7;
   color: #92400e;
 }
 
 .priority-high {
-  background: rgba(239, 68, 68, 0.1);
-  color: #dc2626;
+  background: #fee2e2;
+  color: #991b1b;
 }
 
-.bill-status-actions {
-  display: flex;
-  gap: 8px;
+/* Responsive Design */
+@media (max-width: 768px) {
+  .bill-main {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.75rem;
+  }
+  
+  .bill-right {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  .bill-content {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .bill-dates {
+    flex-direction: column;
+    gap: 0.25rem;
+  }
 }
 
 .btn-secondary.small,
@@ -3864,7 +4387,7 @@ body {
   overflow: hidden;
 }
 
-.calendar-grid {
+.main-calendar-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
 }
@@ -3882,7 +4405,7 @@ body {
 }
 
 .calendar-day {
-  min-height: 80px;
+  min-height: 50px;
   border-right: 1px solid #f1f5f9;
   border-bottom: 1px solid #f1f5f9;
   padding: 0.375rem;

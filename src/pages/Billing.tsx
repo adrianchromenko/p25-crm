@@ -22,7 +22,7 @@ import {
   User,
   AlertCircle
 } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, getDay } from 'date-fns';
 
 interface BillItem {
   description: string;
@@ -235,9 +235,74 @@ const Billing: React.FC = () => {
     }
   };
 
+  // Calculate collection amounts by date
+  const getCollectionsForDate = (date: Date) => {
+    return bills.filter(bill => 
+      bill.expectedCollectionDate && 
+      isSameDay(new Date(bill.expectedCollectionDate), date) &&
+      bill.status !== 'converted' // Don't show converted bills
+    );
+  };
+
+  const getTotalCollectionForDate = (date: Date) => {
+    const collections = getCollectionsForDate(date);
+    return collections.reduce((sum, bill) => sum + (bill.total || 0), 0);
+  };
+
+  // Generate calendar data for 3 months
+  const generateCalendarMonths = () => {
+    const today = new Date();
+    const months = [];
+    
+    for (let i = 0; i < 3; i++) {
+      const monthStart = startOfMonth(addMonths(today, i));
+      const monthEnd = endOfMonth(monthStart);
+      const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
+      
+      // Add empty cells for days before month starts
+      const startDay = getDay(monthStart);
+      const emptyCells = Array(startDay).fill(null);
+      
+      months.push({
+        date: monthStart,
+        days: [...emptyCells, ...days]
+      });
+    }
+    
+    return months;
+  };
+
   if (loading) {
     return <div className="loading">Loading bills...</div>;
   }
+
+  const calendarMonths = generateCalendarMonths();
+  
+  // Calculate total expected collections for next 3 months
+  const calculateMonthlyTotals = () => {
+    const today = new Date();
+    const totals = [];
+    
+    for (let i = 0; i < 3; i++) {
+      const monthStart = startOfMonth(addMonths(today, i));
+      const monthEnd = endOfMonth(monthStart);
+      const monthDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
+      
+      const monthTotal = monthDays.reduce((sum, day) => {
+        return sum + getTotalCollectionForDate(day);
+      }, 0);
+      
+      totals.push({
+        month: format(monthStart, 'MMM yyyy'),
+        total: monthTotal
+      });
+    }
+    
+    return totals;
+  };
+  
+  const monthlyTotals = calculateMonthlyTotals();
+  const grandTotal = monthlyTotals.reduce((sum, month) => sum + month.total, 0);
 
   return (
     <div className="billing-page">
@@ -252,75 +317,159 @@ const Billing: React.FC = () => {
         </button>
       </div>
 
-      <div className="bills-grid">
+      {/* Collection Calendar */}
+      <div className="collection-calendar-section">
+        <div className="calendar-section-header">
+          <h2>Expected Collections - Next 3 Months</h2>
+          <div className="collection-summary">
+            <div className="summary-totals">
+              {monthlyTotals.map((month, index) => (
+                <div key={index} className="month-total">
+                  <span className="month-name">{month.month}</span>
+                  <span className="month-amount">${month.total.toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
+            <div className="grand-total">
+              <span>Total Expected: </span>
+              <strong>${grandTotal.toFixed(2)}</strong>
+            </div>
+          </div>
+        </div>
+        <div className="calendar-grid">
+          {calendarMonths.map((month, monthIndex) => (
+            <div key={monthIndex} className="calendar-month">
+              <div className="calendar-header">
+                <h3>{format(month.date, 'MMMM yyyy')}</h3>
+              </div>
+              
+              <div className="calendar-days-header">
+                <div className="calendar-day-label">Sun</div>
+                <div className="calendar-day-label">Mon</div>
+                <div className="calendar-day-label">Tue</div>
+                <div className="calendar-day-label">Wed</div>
+                <div className="calendar-day-label">Thu</div>
+                <div className="calendar-day-label">Fri</div>
+                <div className="calendar-day-label">Sat</div>
+              </div>
+              
+              <div className="calendar-days">
+                {month.days.map((day, dayIndex) => {
+                  if (!day) {
+                    return <div key={dayIndex} className="calendar-day empty"></div>;
+                  }
+                  
+                  const collections = getCollectionsForDate(day);
+                  const totalAmount = getTotalCollectionForDate(day);
+                  const hasCollections = collections.length > 0;
+                  
+                  return (
+                    <div 
+                      key={dayIndex} 
+                      className={`calendar-day ${hasCollections ? 'has-collections' : ''}`}
+                      title={hasCollections ? 
+                        `$${totalAmount.toFixed(2)} expected\n${collections.map(b => `${b.customerName}: $${b.total?.toFixed(2)}`).join('\n')}` 
+                        : ''
+                      }
+                    >
+                      <div className="calendar-day-number">
+                        {format(day, 'd')}
+                      </div>
+                      {hasCollections && (
+                        <div className="calendar-day-amount">
+                          ${totalAmount > 1000 ? `${(totalAmount/1000).toFixed(1)}k` : totalAmount.toFixed(0)}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="bills-list">
         {bills.map((bill) => (
-          <div key={bill.id} className="bill-card">
-            <div className="bill-header">
-              <div className="bill-number">
-                <FileText size={16} />
-                {bill.billNumber}
+          <div key={bill.id} className="bill-item">
+            <div className="bill-main">
+              <div className="bill-left">
+                <div className="bill-header-info">
+                  <FileText size={16} />
+                  <span className="bill-number">{bill.billNumber}</span>
+                  <span className={`bill-status-badge ${getStatusColor(bill.status)}`}>
+                    {bill.status.replace('_', ' ')}
+                  </span>
+                  <span className={`bill-priority-badge ${getPriorityColor(bill.priority)}`}>
+                    {bill.priority}
+                  </span>
+                </div>
+                
+                <div className="bill-content">
+                  <div className="bill-customer-info">
+                    <User size={14} />
+                    <span className="customer-name">{bill.customerName}</span>
+                    {bill.customerEmail && (
+                      <span className="customer-email">({bill.customerEmail})</span>
+                    )}
+                  </div>
+                  
+                  <div className="bill-dates">
+                    <div className="bill-due">
+                      <CalendarIcon size={14} />
+                      Due: {bill.dueDate ? format(new Date(bill.dueDate), 'MMM dd') : 'Not set'}
+                    </div>
+                    {bill.expectedCollectionDate && (
+                      <div className="bill-expected">
+                        <CalendarIcon size={14} className="collection-icon" />
+                        Expected: {format(new Date(bill.expectedCollectionDate), 'MMM dd')}
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
-              <div className="bill-actions">
-                <button onClick={() => openBillModal(bill)}>
-                  <Edit2 size={16} />
-                </button>
-                <button onClick={() => deleteBill(bill.id!)}>
-                  <Trash2 size={16} />
-                </button>
+
+              <div className="bill-right">
+                <div className="bill-amount">
+                  <DollarSign size={16} />
+                  <strong>${bill.total?.toFixed(2) || '0.00'}</strong>
+                </div>
+                
+                <div className="bill-actions">
+                  {bill.status === 'pending' && (
+                    <button 
+                      className="btn-sm btn-secondary"
+                      onClick={() => updateBillStatus(bill.id!, 'ready_to_invoice')}
+                      title="Mark Ready"
+                    >
+                      Ready
+                    </button>
+                  )}
+                  {bill.status === 'ready_to_invoice' && (
+                    <button 
+                      className="btn-sm btn-primary"
+                      onClick={() => updateBillStatus(bill.id!, 'converted')}
+                      title="Mark Converted"
+                    >
+                      Convert
+                    </button>
+                  )}
+                  <button 
+                    className="btn-icon"
+                    onClick={() => openBillModal(bill)}
+                    title="Edit Bill"
+                  >
+                    <Edit2 size={16} />
+                  </button>
+                  <button 
+                    className="btn-icon btn-danger"
+                    onClick={() => deleteBill(bill.id!)}
+                    title="Delete Bill"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
               </div>
-            </div>
-
-            <div className="bill-customer">
-              <User size={16} />
-              <div>
-                <strong>{bill.customerName}</strong>
-                <div className="customer-email">{bill.customerEmail}</div>
-              </div>
-            </div>
-
-            <div className="bill-amount">
-              <DollarSign size={16} />
-              <strong>${bill.total?.toFixed(2) || '0.00'}</strong>
-            </div>
-
-            <div className="bill-due-date">
-              <CalendarIcon size={16} />
-              Due: {bill.dueDate ? format(new Date(bill.dueDate), 'MMM dd, yyyy') : 'Not set'}
-            </div>
-
-            {bill.expectedCollectionDate && (
-              <div className="bill-collection-date">
-                <CalendarIcon size={16} className="collection-icon" />
-                Expected: {format(new Date(bill.expectedCollectionDate), 'MMM dd, yyyy')}
-              </div>
-            )}
-
-            <div className="bill-meta">
-              <span className={`bill-status ${getStatusColor(bill.status)}`}>
-                {bill.status.replace('_', ' ')}
-              </span>
-              <span className={`bill-priority ${getPriorityColor(bill.priority)}`}>
-                {bill.priority}
-              </span>
-            </div>
-
-            <div className="bill-status-actions">
-              {bill.status === 'pending' && (
-                <button 
-                  className="btn-secondary small"
-                  onClick={() => updateBillStatus(bill.id!, 'ready_to_invoice')}
-                >
-                  Mark Ready
-                </button>
-              )}
-              {bill.status === 'ready_to_invoice' && (
-                <button 
-                  className="btn-primary small"
-                  onClick={() => updateBillStatus(bill.id!, 'converted')}
-                >
-                  Mark Converted
-                </button>
-              )}
             </div>
           </div>
         ))}
