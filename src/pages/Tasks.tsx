@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   collection, 
   getDocs, 
@@ -23,8 +23,6 @@ import {
   Folder,
   Calendar as CalendarIcon,
   Filter,
-  ArrowUp,
-  ArrowDown,
   Circle,
   Tag,
   Briefcase,
@@ -45,7 +43,8 @@ import {
   Users,
   Code,
   Palette,
-  Zap
+  Zap,
+  GripVertical
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -137,6 +136,10 @@ const Tasks: React.FC = () => {
   const [filter, setFilter] = useState({ category: '', status: '', priority: '' });
   const [sortBy, setSortBy] = useState<'priority' | 'dueDate' | 'created' | 'order'>('order');
   const [showFilters, setShowFilters] = useState(false);
+  
+  // Drag and drop state - simplified
+  const [draggedTask, setDraggedTask] = useState<Task | null>(null);
+  const [dragOverTask, setDragOverTask] = useState<string | null>(null);
 
   const [taskFormData, setTaskFormData] = useState<Partial<Task>>({
     title: '',
@@ -287,16 +290,85 @@ const Tasks: React.FC = () => {
     }
   };
 
-  const updateTaskOrder = async (taskId: string, newOrder: number) => {
-    try {
-      await updateDoc(doc(db, 'tasks', taskId), { 
-        order: newOrder,
-        updatedAt: Timestamp.now()
-      });
-      await fetchTasks();
-    } catch (error) {
-      console.error('Error updating task order:', error);
+  // Simple drag and drop handlers
+  const handleDragStart = (e: React.DragEvent, task: Task) => {
+    console.log('Drag started:', task.title);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', task.id || '');
+    setDraggedTask(task);
+  };
+
+  const handleDragEnd = () => {
+    console.log('Drag ended');
+    setDraggedTask(null);
+    setDragOverTask(null);
+  };
+
+  const handleDragOver = (e: React.DragEvent, targetTask: Task) => {
+    e.preventDefault();
+    if (draggedTask && draggedTask.id !== targetTask.id) {
+      setDragOverTask(targetTask.id!);
     }
+  };
+
+  const handleDragLeave = () => {
+    setDragOverTask(null);
+  };
+
+  const handleDrop = async (e: React.DragEvent, targetTask: Task) => {
+    e.preventDefault();
+    
+    if (!draggedTask || draggedTask.id === targetTask.id) {
+      return;
+    }
+
+    console.log('Dropping', draggedTask.title, 'onto', targetTask.title);
+
+    const filteredTasks = getFilteredAndSortedTasks();
+    const draggedIndex = filteredTasks.findIndex(t => t.id === draggedTask.id);
+    const targetIndex = filteredTasks.findIndex(t => t.id === targetTask.id);
+
+    if (draggedIndex === -1 || targetIndex === -1) return;
+
+    // Create new order
+    const newTasks = [...filteredTasks];
+    const [removed] = newTasks.splice(draggedIndex, 1);
+    newTasks.splice(targetIndex, 0, removed);
+
+    // Update orders
+    const updates = newTasks.map((task, index) => ({
+      ...task,
+      order: index
+    }));
+
+    // Update local state
+    const updatedAllTasks = tasks.map(task => {
+      const updatedTask = updates.find(u => u.id === task.id);
+      return updatedTask || task;
+    });
+    
+    setTasks(updatedAllTasks);
+
+    // Update Firebase
+    try {
+      const firebaseUpdates = updates.map((task, index) =>
+        updateDoc(doc(db, 'tasks', task.id!), {
+          order: index,
+          updatedAt: Timestamp.now()
+        })
+      );
+      
+      await Promise.all(firebaseUpdates);
+      console.log('Order updated in Firebase');
+    } catch (error) {
+      console.error('Error updating order:', error);
+      // Revert on error
+      fetchTasks();
+    }
+    
+    // Clean up
+    setDraggedTask(null);
+    setDragOverTask(null);
   };
 
   const addTag = () => {
@@ -410,7 +482,7 @@ const Tasks: React.FC = () => {
             </select>
 
             <select value={sortBy} onChange={(e) => setSortBy(e.target.value as any)}>
-              <option value="order">Custom Order</option>
+              <option value="order">Custom Order (Drag to reorder)</option>
               <option value="priority">Priority</option>
               <option value="dueDate">Due Date</option>
               <option value="created">Created Date</option>
@@ -422,16 +494,38 @@ const Tasks: React.FC = () => {
 
       {/* Tasks List */}
       <div className="tasks-list">
+        
         {filteredTasks.map((task, index) => {
           const category = getCategoryByName(task.category);
+          const isDraggable = sortBy === 'order';
+          const isBeingDragged = draggedTask?.id === task.id;
+          const isDragTarget = dragOverTask === task.id;
           
           return (
-            <div 
-              key={task.id} 
-              className={`task-card ${task.status}`}
-              style={{ borderLeftColor: task.color }}
-            >
+            <div key={task.id} className="task-item-wrapper">
+              <div 
+                className={`task-card ${task.status} ${
+                  isDraggable ? 'draggable' : ''
+                } ${
+                  isBeingDragged ? 'being-dragged' : ''
+                } ${
+                  isDragTarget ? 'drag-target' : ''
+                }`}
+                style={{ borderLeftColor: task.color }}
+                draggable={isDraggable}
+                onDragStart={isDraggable ? (e) => handleDragStart(e, task) : undefined}
+                onDragEnd={isDraggable ? handleDragEnd : undefined}
+                onDragOver={isDraggable ? (e) => handleDragOver(e, task) : undefined}
+                onDragLeave={isDraggable ? handleDragLeave : undefined}
+                onDrop={isDraggable ? (e) => handleDrop(e, task) : undefined}
+              >
               <div className="task-main">
+                {isDraggable && (
+                  <div className="drag-handle" title="Drag to reorder">
+                    <GripVertical size={16} />
+                  </div>
+                )}
+                
                 <div className="task-checkbox" onClick={() => toggleTaskStatus(task)}>
                   {task.status === 'completed' ? 
                     <CheckSquare size={20} style={{ color: statusColors.completed }} /> :
@@ -483,21 +577,6 @@ const Tasks: React.FC = () => {
                 </div>
 
                 <div className="task-actions">
-                  <div className="task-order-controls">
-                    <button 
-                      onClick={() => updateTaskOrder(task.id!, task.order - 1)}
-                      disabled={index === 0}
-                    >
-                      <ArrowUp size={16} />
-                    </button>
-                    <button 
-                      onClick={() => updateTaskOrder(task.id!, task.order + 1)}
-                      disabled={index === filteredTasks.length - 1}
-                    >
-                      <ArrowDown size={16} />
-                    </button>
-                  </div>
-                  
                   <button onClick={() => openTaskModal(task)}>
                     <Edit2 size={16} />
                   </button>
@@ -505,6 +584,7 @@ const Tasks: React.FC = () => {
                     <Trash2 size={16} />
                   </button>
                 </div>
+              </div>
               </div>
             </div>
           );

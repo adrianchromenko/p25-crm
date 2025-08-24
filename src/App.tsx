@@ -13,6 +13,7 @@ import Payments from './pages/Payments';
 import Invoices from './pages/Invoices';
 import Services from './pages/Services';
 import Calendar from './pages/Calendar';
+import Notes from './pages/Notes';
 import Settings from './pages/Settings';
 import './App.css';
 
@@ -40,6 +41,7 @@ function App() {
             <Route path="invoices" element={<Invoices />} />
             <Route path="services" element={<Services />} />
             <Route path="calendar" element={<Calendar />} />
+            <Route path="notes" element={<Notes />} />
             <Route path="settings" element={<Settings />} />
           </Route>
         </Routes>
