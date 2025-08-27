@@ -60,6 +60,7 @@ interface Task {
   tags: string[];
   order: number;
   daySection?: 'today' | 'tomorrow' | 'dayAfter' | null;
+  isActive?: boolean;
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
 }
@@ -152,7 +153,8 @@ const Tasks: React.FC = () => {
     dueDate: '',
     tags: [],
     order: 0,
-    daySection: null
+    daySection: null,
+    isActive: false
   });
 
 
@@ -230,7 +232,8 @@ const Tasks: React.FC = () => {
         dueDate: '',
         tags: [],
         order: tasks.length,
-        daySection: null
+        daySection: null,
+        isActive: false
       });
     }
     setShowTaskModal(true);
@@ -290,6 +293,19 @@ const Tasks: React.FC = () => {
       await fetchTasks();
     } catch (error) {
       console.error('Error updating task status:', error);
+    }
+  };
+
+  const toggleTaskActive = async (task: Task) => {
+    try {
+      // Simply toggle the active state of this task
+      await updateDoc(doc(db, 'tasks', task.id!), {
+        isActive: !task.isActive,
+        updatedAt: Timestamp.now()
+      });
+      await fetchTasks();
+    } catch (error) {
+      console.error('Error toggling task active state:', error);
     }
   };
 
@@ -592,14 +608,17 @@ const Tasks: React.FC = () => {
                           isBeingDragged ? 'being-dragged' : ''
                         } ${
                           isDragTarget ? 'drag-target' : ''
+                        } ${
+                          task.isActive ? 'active-task' : ''
                         }`}
-                        style={{ borderLeftColor: task.color }}
+                        style={{ borderLeftColor: task.isActive ? '#ef4444' : task.color }}
                         draggable={isDraggable}
                         onDragStart={isDraggable ? (e) => handleDragStart(e, task) : undefined}
                         onDragEnd={isDraggable ? handleDragEnd : undefined}
                         onDragOver={isDraggable ? (e) => handleDragOver(e, task) : undefined}
                         onDragLeave={isDraggable ? handleDragLeave : undefined}
                         onDrop={isDraggable ? (e) => handleDrop(e, task) : undefined}
+                        onDoubleClick={() => toggleTaskActive(task)}
                       >
                       <div className="task-main">
                         {isDraggable && (
@@ -659,6 +678,14 @@ const Tasks: React.FC = () => {
                         </div>
 
                         <div className="task-actions">
+                          <label className="active-switch" onClick={(e) => e.stopPropagation()}>
+                            <input
+                              type="checkbox"
+                              checked={task.isActive || false}
+                              onChange={() => toggleTaskActive(task)}
+                            />
+                            <span className="slider"></span>
+                          </label>
                           <button onClick={() => openTaskModal(task)}>
                             <Edit2 size={16} />
                           </button>
