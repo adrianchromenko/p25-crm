@@ -13,7 +13,9 @@ import {
   Receipt,
   CheckSquare,
   FileEdit,
-  StickyNote
+  StickyNote,
+  Clock,
+  TrendingUp
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { collection, getDocs } from 'firebase/firestore';
@@ -101,6 +103,8 @@ const Sidebar: React.FC = () => {
     { path: '/customers', name: 'Customers', icon: <Users size={20} /> },
     { path: '/proposals', name: 'Proposals', icon: <FileEdit size={20} /> },
     { path: '/billing', name: 'Billing', icon: <Receipt size={20} />, badge: billingTotal > 0 ? formatCurrency(billingTotal) : null },
+    { path: '/hourly-tracker', name: 'Hourly Tracker', icon: <Clock size={20} /> },
+    { path: '/financial-forecast', name: 'Financial Forecast', icon: <TrendingUp size={20} /> },
     { path: '/payments', name: 'Payments', icon: <CreditCard size={20} /> },
     { path: '/invoices', name: 'Invoices', icon: <FileText size={20} /> },
     { path: '/notes', name: 'Notes', icon: <StickyNote size={20} /> },

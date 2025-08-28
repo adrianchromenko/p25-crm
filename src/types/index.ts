@@ -78,3 +78,44 @@ export interface Invoice {
   createdAt?: Date;
   updatedAt?: Date;
 }
+
+export interface TimeEntry {
+  id?: string;
+  customerId: string;
+  customerName: string;
+  description: string;
+  startTime: Date;
+  endTime?: Date;
+  duration?: number; // in minutes
+  hourlyRate: number;
+  totalAmount?: number;
+  isRunning: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+export type UserRole = 'user' | 'coordinator' | 'admin';
+
+export interface UserProfile {
+  id: string;
+  email: string;
+  name: string;
+  role: UserRole;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+export interface FinancialForecast {
+  id?: string;
+  userId: string;
+  month: string; // Format: YYYY-MM
+  year: number;
+  monthName: string; // e.g., "January"
+  expectedSales: number;
+  expectedExpenses: number;
+  actualSales?: number; // For tracking actual vs forecast
+  actualExpenses?: number;
+  notes?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+}

@@ -9,6 +9,8 @@ import CustomersWithWebsites from './pages/CustomersWithWebsites';
 import Tasks from './pages/Tasks';
 import Proposals from './pages/Proposals';
 import Billing from './pages/Billing';
+import HourlyTracker from './pages/HourlyTracker';
+import FinancialForecast from './pages/FinancialForecast';
 import Payments from './pages/Payments';
 import Invoices from './pages/Invoices';
 import Services from './pages/Services';
@@ -37,6 +39,8 @@ function App() {
             <Route path="tasks" element={<Tasks />} />
             <Route path="proposals" element={<Proposals />} />
             <Route path="billing" element={<Billing />} />
+            <Route path="hourly-tracker" element={<HourlyTracker />} />
+            <Route path="financial-forecast" element={<FinancialForecast />} />
             <Route path="payments" element={<Payments />} />
             <Route path="invoices" element={<Invoices />} />
             <Route path="services" element={<Services />} />

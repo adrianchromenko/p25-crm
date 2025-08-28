@@ -12,6 +12,9 @@ import {
   Timestamp 
 } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import { usePermissions } from '../hooks/usePermissions';
+import { UserProfile } from '../types';
+import { migrateTasks } from '../utils/migrateTasks';
 import { 
   Plus, 
   Edit2, 
@@ -61,6 +64,8 @@ interface Task {
   order: number;
   daySection?: 'today' | 'tomorrow' | 'dayAfter' | null;
   isActive?: boolean;
+  userId: string; // Owner of the task
+  userName?: string; // For display purposes
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
 }
@@ -130,12 +135,15 @@ const colorOptions = [
 ];
 
 const Tasks: React.FC = () => {
+  const { userProfile, isCoordinator, isAdmin, canViewAllUsers, canEditUserTasks } = usePermissions();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [users, setUsers] = useState<UserProfile[]>([]);
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState({ category: '', status: '', priority: '' });
+  const [filter, setFilter] = useState({ category: '', status: '', priority: '', user: '' });
+  const [selectedUserId, setSelectedUserId] = useState<string>(''); // For admin filtering
   const [sortBy, setSortBy] = useState<'priority' | 'dueDate' | 'created' | 'order'>('order');
   const [showFilters, setShowFilters] = useState(false);
   
@@ -161,10 +169,14 @@ const Tasks: React.FC = () => {
   const [newTag, setNewTag] = useState('');
 
   useEffect(() => {
-    initializeData();
-  }, []);
+    if (userProfile) {
+      initializeData();
+    }
+  }, [userProfile, canViewAllUsers]);
 
   const initializeData = async () => {
+    if (!userProfile) return;
+    
     try {
       // Check if categories exist, if not create defaults
       const categoriesSnapshot = await getDocs(collection(db, 'task_categories'));
@@ -177,8 +189,23 @@ const Tasks: React.FC = () => {
           });
         }
       }
+
+      // Run migration for legacy tasks
+      try {
+        await migrateTasks(userProfile.id);
+      } catch (migrationError) {
+        console.error('Migration warning:', migrationError);
+        // Continue even if migration fails
+      }
       
-      await Promise.all([fetchTasks(), fetchCategories()]);
+      const promises = [fetchTasks(), fetchCategories()];
+      
+      // Fetch users if user has permission to view all users
+      if (canViewAllUsers) {
+        promises.push(fetchUsers());
+      }
+      
+      await Promise.all(promises);
     } catch (error) {
       console.error('Error initializing data:', error);
     } finally {
@@ -187,14 +214,46 @@ const Tasks: React.FC = () => {
   };
 
   const fetchTasks = async () => {
+    if (!userProfile) return;
+    
     try {
-      const tasksSnapshot = await getDocs(
-        query(collection(db, 'tasks'), orderBy('order', 'asc'))
-      );
+      let tasksQuery;
+      
+      if (isCoordinator && !selectedUserId) {
+        // Coordinators see all tasks by default
+        tasksQuery = query(collection(db, 'tasks'), orderBy('order', 'asc'));
+      } else if (isAdmin && selectedUserId) {
+        // Admins can filter by specific user
+        tasksQuery = query(
+          collection(db, 'tasks'), 
+          where('userId', '==', selectedUserId),
+          orderBy('order', 'asc')
+        );
+      } else if (isAdmin && !selectedUserId) {
+        // Admins see all tasks when no user is selected
+        tasksQuery = query(collection(db, 'tasks'), orderBy('order', 'asc'));
+      } else {
+        // Regular users only see their own tasks
+        tasksQuery = query(
+          collection(db, 'tasks'), 
+          where('userId', '==', userProfile.id),
+          orderBy('order', 'asc')
+        );
+      }
+
+      const tasksSnapshot = await getDocs(tasksQuery);
       const tasksData: Task[] = [];
+      
       tasksSnapshot.forEach((doc) => {
-        tasksData.push({ id: doc.id, ...doc.data() } as Task);
+        const taskData = { id: doc.id, ...doc.data() } as Task;
+        // Add userName for display if we have user info
+        if (taskData.userId && users.length > 0) {
+          const user = users.find(u => u.id === taskData.userId);
+          taskData.userName = user ? user.name : 'Unknown User';
+        }
+        tasksData.push(taskData);
       });
+      
       setTasks(tasksData);
     } catch (error) {
       console.error('Error fetching tasks:', error);
@@ -216,6 +275,19 @@ const Tasks: React.FC = () => {
     }
   };
 
+  const fetchUsers = async () => {
+    try {
+      const usersSnapshot = await getDocs(collection(db, 'users'));
+      const usersData: UserProfile[] = [];
+      usersSnapshot.forEach((doc) => {
+        usersData.push({ id: doc.id, ...doc.data() } as UserProfile);
+      });
+      setUsers(usersData);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+    }
+  };
+
   const openTaskModal = (task?: Task) => {
     if (task) {
       setEditingTask(task);
@@ -233,7 +305,8 @@ const Tasks: React.FC = () => {
         tags: [],
         order: tasks.length,
         daySection: null,
-        isActive: false
+        isActive: false,
+        userId: userProfile?.id || ''
       });
     }
     setShowTaskModal(true);
@@ -247,13 +320,21 @@ const Tasks: React.FC = () => {
   const saveTask = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (!userProfile) return;
+    
     try {
       const taskData = {
         ...taskFormData,
+        userId: taskFormData.userId || userProfile.id, // Ensure userId is set
         updatedAt: Timestamp.now()
       };
 
       if (editingTask) {
+        // Check if user can edit this task
+        if (!canEditUserTasks(editingTask.userId)) {
+          alert('You do not have permission to edit this task');
+          return;
+        }
         await updateDoc(doc(db, 'tasks', editingTask.id!), taskData);
       } else {
         await addDoc(collection(db, 'tasks'), {
@@ -435,6 +516,7 @@ const Tasks: React.FC = () => {
       if (filter.category && task.category !== filter.category) return false;
       if (filter.status && task.status !== filter.status) return false;
       if (filter.priority && task.priority !== filter.priority) return false;
+      if (filter.user && task.userId !== filter.user) return false;
       return true;
     });
 
@@ -473,8 +555,33 @@ const Tasks: React.FC = () => {
       <div className="page-header">
         <div>
           <h1>Tasks</h1>
+          {isCoordinator && <p>Coordinator View - Seeing all tasks</p>}
+          {isAdmin && !selectedUserId && <p>Admin View - All users</p>}
+          {isAdmin && selectedUserId && <p>Admin View - Filtered by user</p>}
         </div>
         <div className="header-actions">
+          {isAdmin && (
+            <select
+              value={selectedUserId}
+              onChange={async (e) => {
+                setSelectedUserId(e.target.value);
+                // Refetch tasks when admin changes user filter
+                try {
+                  await fetchTasks();
+                } catch (error) {
+                  console.error('Error refetching tasks:', error);
+                }
+              }}
+              className="user-filter-select"
+            >
+              <option value="">All Users</option>
+              {users.map(user => (
+                <option key={user.id} value={user.id}>
+                  {user.name} ({user.role})
+                </option>
+              ))}
+            </select>
+          )}
           <button 
             className="btn-secondary filter-toggle" 
             onClick={() => setShowFilters(!showFilters)}
@@ -522,6 +629,20 @@ const Tasks: React.FC = () => {
               <option value="medium">Medium</option>
               <option value="low">Low</option>
             </select>
+
+            {isCoordinator && (
+              <select 
+                value={filter.user} 
+                onChange={(e) => setFilter({...filter, user: e.target.value})}
+              >
+                <option value="">All Users</option>
+                {users.map(user => (
+                  <option key={user.id} value={user.id}>
+                    {user.name}
+                  </option>
+                ))}
+              </select>
+            )}
 
             <select value={sortBy} onChange={(e) => setSortBy(e.target.value as any)}>
               <option value="order">Custom Order (Drag to reorder)</option>
@@ -635,7 +756,12 @@ const Tasks: React.FC = () => {
                         </div>
 
                         <div className="task-content">
-                          <div className="task-title">{task.title}</div>
+                          <div className="task-title">
+                            {task.title}
+                            {(isCoordinator || isAdmin) && task.userName && (
+                              <span className="task-user"> - {task.userName}</span>
+                            )}
+                          </div>
                           {task.description && (
                             <div className="task-description">{task.description}</div>
                           )}

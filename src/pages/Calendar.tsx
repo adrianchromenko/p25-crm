@@ -8,6 +8,7 @@ import {
   doc,
   query,
   orderBy,
+  where,
   Timestamp,
   writeBatch
 } from 'firebase/firestore';
@@ -39,6 +40,9 @@ import { format,
   isSameDay
 } from 'date-fns';
 import NotificationPermission from '../components/NotificationPermission';
+import { usePermissions } from '../hooks/usePermissions';
+import { UserProfile } from '../types';
+import { migrateCalendarEvents } from '../utils/migrateTasks';
 
 interface CalendarEvent {
   id?: string;
@@ -50,6 +54,8 @@ interface CalendarEvent {
   endTime: string;
   reminders: Reminder[];
   type: 'meeting' | 'call' | 'deadline' | 'personal' | 'other';
+  userId: string; // Owner of the event
+  userName?: string; // For display purposes
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
   repeatEventId?: string; // Links to repeat event that created this event
@@ -90,7 +96,9 @@ interface RepeatEvent {
 }
 
 const Calendar: React.FC = () => {
+  const { userProfile, isCoordinator, isAdmin, canViewAllUsers, canEditUserCalendar } = usePermissions();
   const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [users, setUsers] = useState<UserProfile[]>([]);
   const [reminderTemplates, setReminderTemplates] = useState<ReminderTemplate[]>([]);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -100,6 +108,7 @@ const Calendar: React.FC = () => {
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
   const [editingRepeatEvent, setEditingRepeatEvent] = useState<RepeatEvent | null>(null);
   const [repeatEvents, setRepeatEvents] = useState<RepeatEvent[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState<string>(''); // For admin filtering
   const [loading, setLoading] = useState(true);
 
   const [eventFormData, setEventFormData] = useState<Partial<CalendarEvent>>({
@@ -110,7 +119,8 @@ const Calendar: React.FC = () => {
     startTime: '09:00',
     endTime: '10:00',
     type: 'meeting',
-    reminders: []
+    reminders: [],
+    userId: ''
   });
 
   const [repeatEventFormData, setRepeatEventFormData] = useState<Partial<RepeatEvent>>({
@@ -136,7 +146,10 @@ const Calendar: React.FC = () => {
   const [templateViewMode, setTemplateViewMode] = useState<'list' | 'form'>('list');
 
   useEffect(() => {
-    fetchData();
+    if (userProfile) {
+      fetchData();
+    }
+    
     // Start the email reminder service
     emailService.startReminderService();
     
@@ -144,19 +157,62 @@ const Calendar: React.FC = () => {
     return () => {
       emailService.stopReminderService();
     };
-  }, []);
+  }, [userProfile, canViewAllUsers, selectedUserId]);
 
   const fetchData = async () => {
+    if (!userProfile) return;
+    
     try {
-      const [eventsSnapshot, templatesSnapshot, repeatEventsSnapshot] = await Promise.all([
-        getDocs(query(collection(db, 'calendar_events'), orderBy('startDate', 'asc'))),
+      // Run migration for legacy calendar events
+      try {
+        await migrateCalendarEvents(userProfile.id);
+      } catch (migrationError) {
+        console.error('Calendar migration warning:', migrationError);
+        // Continue even if migration fails
+      }
+
+      // Build the events query based on role and selected user
+      let eventsQuery;
+      if (isCoordinator && !selectedUserId) {
+        // Coordinators see all events by default
+        eventsQuery = query(collection(db, 'calendar_events'), orderBy('startDate', 'asc'));
+      } else if (isAdmin && selectedUserId) {
+        // Admins can filter by specific user
+        eventsQuery = query(
+          collection(db, 'calendar_events'), 
+          where('userId', '==', selectedUserId),
+          orderBy('startDate', 'asc')
+        );
+      } else if (isAdmin && !selectedUserId) {
+        // Admins see all events when no user is selected
+        eventsQuery = query(collection(db, 'calendar_events'), orderBy('startDate', 'asc'));
+      } else {
+        // Regular users only see their own events
+        eventsQuery = query(
+          collection(db, 'calendar_events'), 
+          where('userId', '==', userProfile.id),
+          orderBy('startDate', 'asc')
+        );
+      }
+
+      const promises = [
+        getDocs(eventsQuery),
         getDocs(collection(db, 'reminder_templates')),
         getDocs(query(collection(db, 'repeat_events'), orderBy('createdAt', 'desc')))
-      ]);
+      ];
+
+      // Add users query if user has permission
+      if (canViewAllUsers) {
+        promises.push(getDocs(collection(db, 'users')));
+      }
+
+      const results = await Promise.all(promises);
+      const [eventsSnapshot, templatesSnapshot, repeatEventsSnapshot, usersSnapshot] = results;
 
       const eventsData: CalendarEvent[] = [];
       eventsSnapshot.forEach((doc) => {
-        eventsData.push({ id: doc.id, ...doc.data() } as CalendarEvent);
+        const eventData = { id: doc.id, ...doc.data() } as CalendarEvent;
+        eventsData.push(eventData);
       });
 
       const templatesData: ReminderTemplate[] = [];
@@ -168,6 +224,23 @@ const Calendar: React.FC = () => {
       repeatEventsSnapshot.forEach((doc) => {
         repeatEventsData.push({ id: doc.id, ...doc.data() } as RepeatEvent);
       });
+
+      // Handle users data if available
+      const usersData: UserProfile[] = [];
+      if (usersSnapshot) {
+        usersSnapshot.forEach((doc) => {
+          usersData.push({ id: doc.id, ...doc.data() } as UserProfile);
+        });
+        setUsers(usersData);
+        
+        // Add userName to events
+        eventsData.forEach(event => {
+          if (event.userId) {
+            const user = usersData.find(u => u.id === event.userId);
+            event.userName = user ? user.name : 'Unknown User';
+          }
+        });
+      }
 
       // Add default templates if none exist
       if (templatesData.length === 0) {
@@ -208,13 +281,23 @@ const Calendar: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!userProfile) return;
+    
     try {
       const eventData = {
         ...eventFormData,
+        userId: eventFormData.userId || userProfile.id, // Ensure userId is set
         reminders: eventFormData.reminders || []
       };
 
       if (editingEvent) {
+        // Check if user can edit this event
+        if (!canEditUserCalendar(editingEvent.userId)) {
+          alert('You do not have permission to edit this event');
+          return;
+        }
+        
         await updateDoc(doc(db, 'calendar_events', editingEvent.id!), {
           ...eventData,
           updatedAt: Timestamp.now(),
@@ -308,6 +391,7 @@ const Calendar: React.FC = () => {
             type: repeatEvent.type,
             reminders: repeatEvent.reminders,
             repeatEventId: repeatEvent.id,
+            userId: userProfile?.id || '', // Use current user for repeat events
             createdAt: Timestamp.now(),
             updatedAt: Timestamp.now()
           });
@@ -411,7 +495,8 @@ const Calendar: React.FC = () => {
         startTime: '09:00',
         endTime: '10:00',
         type: 'meeting',
-        reminders: []
+        reminders: [],
+        userId: userProfile?.id || ''
       });
     }
     setShowEventModal(true);
@@ -623,6 +708,39 @@ const Calendar: React.FC = () => {
     <>
       <NotificationPermission />
       <div className="calendar-page">
+        <div className="page-header">
+          <div>
+            <h1>Calendar</h1>
+            {isCoordinator && <p>Coordinator View - Seeing all events</p>}
+            {isAdmin && !selectedUserId && <p>Admin View - All users</p>}
+            {isAdmin && selectedUserId && <p>Admin View - Filtered by user</p>}
+          </div>
+          <div className="header-actions">
+            {isAdmin && (
+              <select
+                value={selectedUserId}
+                onChange={async (e) => {
+                  setSelectedUserId(e.target.value);
+                  // Refetch events when admin changes user filter
+                  try {
+                    await fetchData();
+                  } catch (error) {
+                    console.error('Error refetching events:', error);
+                  }
+                }}
+                className="user-filter-select"
+              >
+                <option value="">All Users</option>
+                {users.map(user => (
+                  <option key={user.id} value={user.id}>
+                    {user.name} ({user.role})
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+        </div>
+        
         <div className="calendar-header-actions">
           <button 
             className="btn-secondary" 
@@ -723,6 +841,9 @@ const Calendar: React.FC = () => {
                       <span className="event-title">
                         {event.repeatEventId && <Repeat size={12} className="repeat-icon" />}
                         {event.title}
+                        {(isCoordinator || isAdmin) && event.userName && (
+                          <span className="event-user"> - {event.userName}</span>
+                        )}
                       </span>
                     </div>
                   ))}
