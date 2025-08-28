@@ -15,9 +15,11 @@ import {
   FileEdit,
   StickyNote,
   Clock,
-  TrendingUp
+  TrendingUp,
+  Shield
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { usePermissions } from '../hooks/usePermissions';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../config/firebase';
 
@@ -31,6 +33,7 @@ interface MenuItem {
 const Sidebar: React.FC = () => {
   const { signOut, currentUser } = useAuth();
   const navigate = useNavigate();
+  const { isAdmin } = usePermissions();
   const [billingTotal, setBillingTotal] = useState<number>(0);
 
   useEffect(() => {
@@ -109,6 +112,7 @@ const Sidebar: React.FC = () => {
     { path: '/invoices', name: 'Invoices', icon: <FileText size={20} /> },
     { path: '/notes', name: 'Notes', icon: <StickyNote size={20} /> },
     { path: '/services', name: 'Services', icon: <Package size={20} /> },
+    ...(isAdmin ? [{ path: '/user-management', name: 'User Management', icon: <Shield size={20} /> }] : []),
     { path: '/settings', name: 'Settings', icon: <Settings size={20} /> },
   ];
 
