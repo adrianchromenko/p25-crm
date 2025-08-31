@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   collection, 
   getDocs, 
@@ -20,9 +21,11 @@ import {
   DollarSign,
   Calendar as CalendarIcon,
   User,
-  AlertCircle
+  AlertCircle,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, getDay } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, getDay, isToday, addWeeks, subWeeks, subMonths, parseISO, isSameMonth, startOfISOWeek, endOfISOWeek } from 'date-fns';
 
 interface BillItem {
   description: string;
@@ -44,8 +47,10 @@ interface PendingBill {
   notes: string;
   dueDate: string;
   expectedCollectionDate?: string;
-  status: 'pending' | 'ready_to_invoice' | 'converted';
-  priority: 'low' | 'medium' | 'high';
+  status: 'upcoming' | 'pending' | 'sent_invoice' | 'paid';
+  invoiceSent?: boolean;
+  paymentConfirmed?: boolean;
+  includeHST?: boolean;
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
 }
@@ -71,6 +76,13 @@ const Billing: React.FC = () => {
   const [editingBill, setEditingBill] = useState<PendingBill | null>(null);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
   const [loading, setLoading] = useState(true);
+  
+  // Calendar state
+  const [calendarViewMode, setCalendarViewMode] = useState<'weekly' | 'monthly'>('weekly');
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [currentWeek, setCurrentWeek] = useState(new Date());
+  
+  const navigate = useNavigate();
 
   const [billFormData, setBillFormData] = useState<Partial<PendingBill>>({
     billNumber: `BILL-${Date.now()}`,
@@ -84,8 +96,8 @@ const Billing: React.FC = () => {
     notes: '',
     dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30 days from now
     expectedCollectionDate: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 45 days from now
-    status: 'pending',
-    priority: 'medium'
+    status: 'upcoming',
+    includeHST: true
   });
 
   const [expenseFormData, setExpenseFormData] = useState<Partial<Expense>>({
@@ -139,9 +151,9 @@ const Billing: React.FC = () => {
     return quantity * rate;
   };
 
-  const calculateTotals = (items: BillItem[]) => {
+  const calculateTotals = (items: BillItem[], includeHST = true) => {
     const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
-    const tax = subtotal * 0.13; // 13% HST
+    const tax = includeHST ? subtotal * 0.13 : 0; // 13% HST only if includeHST is true
     const total = subtotal + tax;
     return { subtotal, tax, total };
   };
@@ -154,7 +166,7 @@ const Billing: React.FC = () => {
       newItems[index].amount = calculateItemAmount(newItems[index].quantity, newItems[index].rate);
     }
     
-    const { subtotal, tax, total } = calculateTotals(newItems);
+    const { subtotal, tax, total } = calculateTotals(newItems, billFormData.includeHST);
     setBillFormData({
       ...billFormData,
       items: newItems,
@@ -169,9 +181,43 @@ const Billing: React.FC = () => {
     setBillFormData({ ...billFormData, items: newItems });
   };
 
+  const toggleHST = () => {
+    const newIncludeHST = !billFormData.includeHST;
+    const { subtotal, tax, total } = calculateTotals(billFormData.items || [], newIncludeHST);
+    setBillFormData({
+      ...billFormData,
+      includeHST: newIncludeHST,
+      subtotal,
+      tax,
+      total
+    });
+  };
+
+  const createInvoiceFromBill = (bill: PendingBill) => {
+    // Prepare data for the invoice page
+    const invoiceData = {
+      customerName: bill.customerName,
+      customerEmail: bill.customerEmail,
+      customerAddress: bill.customerAddress,
+      lineItems: bill.items.map(item => ({
+        description: item.description,
+        quantity: item.quantity,
+        unitPrice: item.rate,
+        total: item.amount
+      })),
+      subtotal: bill.subtotal,
+      hstAmount: bill.tax,
+      totalAmount: bill.total,
+      notes: bill.notes
+    };
+
+    // Navigate to invoice page with the bill data
+    navigate('/invoices', { state: { fromBill: invoiceData } });
+  };
+
   const removeItem = (index: number) => {
     const newItems = (billFormData.items || []).filter((_, i) => i !== index);
-    const { subtotal, tax, total } = calculateTotals(newItems);
+    const { subtotal, tax, total } = calculateTotals(newItems, billFormData.includeHST);
     setBillFormData({
       ...billFormData,
       items: newItems,
@@ -200,7 +246,7 @@ const Billing: React.FC = () => {
         dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         expectedCollectionDate: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
         status: 'pending',
-        priority: 'medium'
+        includeHST: true
       });
     }
     setShowBillModal(true);
@@ -259,20 +305,17 @@ const Billing: React.FC = () => {
     }
   };
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'high': return 'priority-high';
-      case 'medium': return 'priority-medium';
-      case 'low': return 'priority-low';
-      default: return 'priority-medium';
-    }
-  };
+
 
   const getStatusColor = (status: string) => {
     switch (status) {
+      case 'upcoming': return 'status-upcoming';
       case 'pending': return 'status-pending';
-      case 'ready_to_invoice': return 'status-ready';
-      case 'converted': return 'status-converted';
+      case 'sent_invoice': return 'status-sent-invoice';
+      case 'paid': return 'status-paid';
+      // Legacy statuses
+      case 'ready_to_invoice': return 'status-sent-invoice';
+      case 'converted': return 'status-paid';
       default: return 'status-pending';
     }
   };
@@ -342,7 +385,7 @@ const Billing: React.FC = () => {
     return bills.filter(bill => 
       bill.expectedCollectionDate && 
       isSameDay(new Date(bill.expectedCollectionDate), date) &&
-      bill.status !== 'converted' // Don't show converted bills
+      bill.status !== 'paid' // Don't show paid bills
     );
   };
 
@@ -414,8 +457,100 @@ const Billing: React.FC = () => {
     return totals;
   };
   
-  const monthlyTotals = calculateMonthlyTotals();
-  const grandTotal = monthlyTotals.reduce((sum, month) => sum + month.total, 0);
+  // Remove unused variables from old calendar implementation
+  // const monthlyTotals = calculateMonthlyTotals();
+  // const grandTotal = monthlyTotals.reduce((sum, month) => sum + month.total, 0);
+
+  // Calendar helper functions
+  const getBillsForDay = (day: Date) => {
+    return bills.filter(bill => {
+      if (!bill.dueDate) return false;
+      try {
+        // Handle both ISO date strings and date strings
+        const billDate = bill.dueDate.includes('T') ? parseISO(bill.dueDate) : parseISO(bill.dueDate + 'T00:00:00');
+        return isSameDay(billDate, day);
+      } catch (error) {
+        console.warn('Invalid bill due date:', bill.dueDate);
+        return false;
+      }
+    });
+  };
+
+  const getBillStatusColor = (bill: PendingBill) => {
+    switch (bill.status) {
+      case 'upcoming':
+        return 'bg-purple-100 text-purple-800 border-purple-200'; // Upcoming - purple
+      case 'pending':
+        return 'bg-orange-100 text-orange-800 border-orange-200'; // Pending - orange
+      case 'sent_invoice':
+        return 'bg-blue-100 text-blue-800 border-blue-200'; // Sent Invoice - blue
+      case 'paid':
+        return 'bg-green-100 text-green-800 border-green-200'; // Paid - green
+      default:
+        return 'bg-gray-100 text-gray-800 border-gray-200'; // Default - gray
+    }
+  };
+
+  // Calculate weekly totals by status
+  const getWeeklyTotals = () => {
+    const weekStart = startOfISOWeek(currentWeek);
+    const weekEnd = endOfISOWeek(currentWeek);
+    
+    const weeklyBills = bills.filter(bill => {
+      if (!bill.dueDate) return false;
+      try {
+        const billDate = bill.dueDate.includes('T') ? parseISO(bill.dueDate) : parseISO(bill.dueDate + 'T00:00:00');
+        return billDate >= weekStart && billDate <= weekEnd;
+      } catch (error) {
+        return false;
+      }
+    });
+
+    const totals = {
+      upcoming: { count: 0, amount: 0 },
+      pending: { count: 0, amount: 0 },
+      sentInvoice: { count: 0, amount: 0 },
+      paid: { count: 0, amount: 0 }
+    };
+
+    weeklyBills.forEach(bill => {
+      switch (bill.status) {
+        case 'upcoming':
+          totals.upcoming.count++;
+          totals.upcoming.amount += bill.total || 0;
+          break;
+        case 'pending':
+          totals.pending.count++;
+          totals.pending.amount += bill.total || 0;
+          break;
+        case 'sent_invoice':
+          totals.sentInvoice.count++;
+          totals.sentInvoice.amount += bill.total || 0;
+          break;
+        case 'paid':
+          totals.paid.count++;
+          totals.paid.amount += bill.total || 0;
+          break;
+        default:
+          // Handle legacy bills or unknown statuses
+          if (bill.paymentConfirmed || bill.status === 'converted') {
+            totals.paid.count++;
+            totals.paid.amount += bill.total || 0;
+          } else if (bill.invoiceSent) {
+            totals.sentInvoice.count++;
+            totals.sentInvoice.amount += bill.total || 0;
+          } else {
+            totals.pending.count++;
+            totals.pending.amount += bill.total || 0;
+          }
+          break;
+      }
+    });
+
+    return totals;
+  };
+
+  const weeklyTotals = getWeeklyTotals();
 
   return (
     <div className="billing-page">
@@ -436,87 +571,188 @@ const Billing: React.FC = () => {
         </div>
       </div>
 
-      {/* Collection Calendar */}
-      <div className="collection-calendar-section">
-        <div className="calendar-section-header">
-          <h2>Expected Collections - Next 3 Months</h2>
-          <div className="collection-summary">
-            <div className="summary-totals">
-              {monthlyTotals.map((month, index) => (
-                <div key={index} className="month-total">
-                  <span className="month-name">{month.month}</span>
-                  <span className="month-amount">${month.total.toFixed(2)}</span>
-                </div>
-              ))}
+      {/* Bills Calendar - Weekly View */}
+      <div className="bills-calendar-section">
+        <div className="bills-calendar-header">
+          <h2>Bills Calendar</h2>
+          <div className="calendar-controls">
+            <div className="view-toggle">
+              <button 
+                className={`btn-toggle ${calendarViewMode === 'weekly' ? 'active' : ''}`}
+                onClick={() => setCalendarViewMode('weekly')}
+              >
+                Week
+              </button>
+              <button 
+                className={`btn-toggle ${calendarViewMode === 'monthly' ? 'active' : ''}`}
+                onClick={() => setCalendarViewMode('monthly')}
+              >
+                Month
+              </button>
             </div>
-            <div className="grand-total">
-              <span>Total Expected: </span>
-              <strong>${grandTotal.toFixed(2)}</strong>
+            <div className="calendar-nav">
+              <button 
+                className="btn-icon" 
+                onClick={() => {
+                  if (calendarViewMode === 'monthly') {
+                    setCurrentDate(subMonths(currentDate, 1));
+                  } else {
+                    setCurrentWeek(subWeeks(currentWeek, 1));
+                  }
+                }}
+              >
+                <ChevronLeft size={20} />
+              </button>
+              <h3 className="calendar-title">
+                {calendarViewMode === 'monthly' 
+                  ? format(currentDate, 'MMMM yyyy')
+                  : `${format(startOfISOWeek(currentWeek), 'MMM d')} - ${format(endOfISOWeek(currentWeek), 'MMM d, yyyy')}`
+                }
+              </h3>
+              <button 
+                className="btn-icon" 
+                onClick={() => {
+                  if (calendarViewMode === 'monthly') {
+                    setCurrentDate(addMonths(currentDate, 1));
+                  } else {
+                    setCurrentWeek(addWeeks(currentWeek, 1));
+                  }
+                }}
+              >
+                <ChevronRight size={20} />
+              </button>
             </div>
           </div>
         </div>
-        <div className="calendar-grid">
-          {calendarMonths.map((month, monthIndex) => (
-            <div key={monthIndex} className="calendar-month">
-              <div className="calendar-header">
-                <h3>{format(month.date, 'MMMM yyyy')}</h3>
+
+        {/* Weekly Totals Summary - only show in weekly view */}
+        {calendarViewMode === 'weekly' && (
+          <div className="weekly-totals-summary">
+            <h4>This Week's Bills</h4>
+            <div className="totals-grid">
+              <div className="total-item upcoming">
+                <span className="total-label">Upcoming</span>
+                <span className="total-count">{weeklyTotals.upcoming.count}</span>
+                <span className="total-amount">${weeklyTotals.upcoming.amount.toFixed(2)}</span>
               </div>
-              
-              <div className="calendar-days-header">
-                <div className="calendar-day-label">Sun</div>
-                <div className="calendar-day-label">Mon</div>
-                <div className="calendar-day-label">Tue</div>
-                <div className="calendar-day-label">Wed</div>
-                <div className="calendar-day-label">Thu</div>
-                <div className="calendar-day-label">Fri</div>
-                <div className="calendar-day-label">Sat</div>
+              <div className="total-item pending">
+                <span className="total-label">Pending</span>
+                <span className="total-count">{weeklyTotals.pending.count}</span>
+                <span className="total-amount">${weeklyTotals.pending.amount.toFixed(2)}</span>
               </div>
-              
-              <div className="calendar-days">
-                {month.days.map((day, dayIndex) => {
-                  if (!day) {
-                    return <div key={dayIndex} className="calendar-day empty"></div>;
-                  }
-                  
-                  const collections = getCollectionsForDate(day);
-                  const totalAmount = getTotalCollectionForDate(day);
-                  const hasCollections = collections.length > 0;
-                  const expensesForDay = getExpensesForDate(day);
-                  const totalExpenses = getTotalExpenseForDate(day);
-                  const hasExpenses = expensesForDay.length > 0;
-                  const isToday = format(day, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
-                  
-                  return (
-                    <div 
-                      key={dayIndex} 
-                      className={`calendar-day ${isToday ? 'today' : ''}`}
-                      title={[
-                        hasCollections && `Income: $${totalAmount.toFixed(2)}\n${collections.map(b => `${b.customerName}: $${b.total?.toFixed(2)}`).join('\n')}`,
-                        hasExpenses && `Expenses: $${totalExpenses.toFixed(2)}\n${expensesForDay.map(e => `${e.title}: $${e.amount?.toFixed(2)}`).join('\n')}`
-                      ].filter(Boolean).join('\n\n') || ''}
-                    >
-                      <div className="calendar-day-number">
-                        {format(day, 'd')}
-                      </div>
-                      
-                      <div className="calendar-day-indicators">
-                        {hasCollections && (
-                          <div className="calendar-pill income-pill">
-                            +${totalAmount > 1000 ? `${(totalAmount/1000).toFixed(1)}k` : totalAmount.toFixed(0)}
-                          </div>
-                        )}
-                        {hasExpenses && (
-                          <div className="calendar-pill expense-pill">
-                            -${totalExpenses > 1000 ? `${(totalExpenses/1000).toFixed(1)}k` : totalExpenses.toFixed(0)}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+              <div className="total-item invoice-sent">
+                <span className="total-label">Sent Invoice</span>
+                <span className="total-count">{weeklyTotals.sentInvoice.count}</span>
+                <span className="total-amount">${weeklyTotals.sentInvoice.amount.toFixed(2)}</span>
+              </div>
+              <div className="total-item payment-confirmed">
+                <span className="total-label">Paid</span>
+                <span className="total-count">{weeklyTotals.paid.count}</span>
+                <span className="total-amount">${weeklyTotals.paid.amount.toFixed(2)}</span>
               </div>
             </div>
-          ))}
+          </div>
+        )}
+        
+        {/* Calendar Grid */}
+        <div className="bills-calendar-container">
+          {calendarViewMode === 'monthly' ? (
+            <div className="bills-monthly-grid">
+              {/* Day Headers */}
+              {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
+                <div key={day} className="bills-day-header">
+                  {day}
+                </div>
+              ))}
+              
+              {/* Calendar Days */}
+              {eachDayOfInterval({ 
+                start: startOfISOWeek(startOfMonth(currentDate)), 
+                end: endOfISOWeek(endOfMonth(currentDate)) 
+              }).map((day) => {
+                const dayBills = getBillsForDay(day);
+                const isCurrentMonth = isSameMonth(day, currentDate);
+                
+                return (
+                  <div
+                    key={day.toString()}
+                    className={`bills-calendar-day ${!isCurrentMonth ? 'other-month' : ''} ${
+                      isToday(day) ? 'today' : ''
+                    }`}
+                  >
+                    <div className="bills-day-number">{format(day, 'd')}</div>
+                    <div className="bills-day-events">
+                      {dayBills.slice(0, 3).map((bill, index) => (
+                        <div
+                          key={bill.id}
+                          className={`bills-event-item ${getBillStatusColor(bill)}`}
+                          onClick={() => openBillModal(bill)}
+                        >
+                          <span className="bills-event-customer">
+                            {bill.customerName}
+                          </span>
+                          <span className="bills-event-amount">
+                            ${bill.total.toFixed(2)}
+                          </span>
+                        </div>
+                      ))}
+                      {dayBills.length > 3 && (
+                        <div className="more-bills">+{dayBills.length - 3} more</div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="bills-weekly-grid">
+              {/* Day Headers */}
+              {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
+                <div key={day} className="bills-weekly-day-header">
+                  {day}
+                </div>
+              ))}
+              
+              {/* Weekly Days */}
+              {eachDayOfInterval({ 
+                start: startOfISOWeek(currentWeek), 
+                end: endOfISOWeek(currentWeek) 
+              }).map((day) => {
+                const dayBills = getBillsForDay(day);
+                
+                return (
+                  <div
+                    key={day.toString()}
+                    className={`bills-weekly-day ${isToday(day) ? 'today' : ''}`}
+                  >
+                    <div className="bills-weekly-day-number">{format(day, 'd')}</div>
+                    <div className="bills-weekly-day-events">
+                      {dayBills.length === 0 ? (
+                        // Show empty state or nothing
+                        null
+                      ) : (
+                        dayBills.map((bill, index) => (
+                          <div
+                            key={bill.id}
+                            className={`bills-weekly-event-item ${getBillStatusColor(bill)}`}
+                            onClick={() => openBillModal(bill)}
+                            title={`${bill.customerName} - ${bill.status} - Due: ${bill.dueDate}`}
+                          >
+                            <span className="bills-weekly-event-customer">
+                              {bill.customerName.length > 12 ? bill.customerName.substring(0, 12) + '...' : bill.customerName}
+                            </span>
+                            <span className="bills-weekly-event-amount">
+                              ${bill.total?.toFixed(2) || '0.00'}
+                            </span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 
@@ -531,9 +767,6 @@ const Billing: React.FC = () => {
                   <span className="bill-number">{bill.billNumber}</span>
                   <span className={`bill-status-badge ${getStatusColor(bill.status)}`}>
                     {bill.status.replace('_', ' ')}
-                  </span>
-                  <span className={`bill-priority-badge ${getPriorityColor(bill.priority)}`}>
-                    {bill.priority}
                   </span>
                 </div>
                 
@@ -571,19 +804,19 @@ const Billing: React.FC = () => {
                   {bill.status === 'pending' && (
                     <button 
                       className="btn-sm btn-secondary"
-                      onClick={() => updateBillStatus(bill.id!, 'ready_to_invoice')}
-                      title="Mark Ready"
+                      onClick={() => updateBillStatus(bill.id!, 'sent_invoice')}
+                      title="Send Invoice"
                     >
-                      Ready
+                      Send Invoice
                     </button>
                   )}
-                  {bill.status === 'ready_to_invoice' && (
+                  {bill.status === 'sent_invoice' && (
                     <button 
                       className="btn-sm btn-primary"
-                      onClick={() => updateBillStatus(bill.id!, 'converted')}
-                      title="Mark Converted"
+                      onClick={() => updateBillStatus(bill.id!, 'paid')}
+                      title="Mark as Paid"
                     >
-                      Convert
+                      Mark Paid
                     </button>
                   )}
                   <button 
@@ -691,23 +924,13 @@ const Billing: React.FC = () => {
                     value={billFormData.status || 'pending'}
                     onChange={(e) => setBillFormData({ ...billFormData, status: e.target.value as PendingBill['status'] })}
                   >
+                    <option value="upcoming">Upcoming</option>
                     <option value="pending">Pending</option>
-                    <option value="ready_to_invoice">Ready to Invoice</option>
-                    <option value="converted">Converted</option>
+                    <option value="sent_invoice">Sent Invoice</option>
+                    <option value="paid">Paid</option>
                   </select>
                 </div>
 
-                <div className="form-group">
-                  <label>Priority</label>
-                  <select
-                    value={billFormData.priority || 'medium'}
-                    onChange={(e) => setBillFormData({ ...billFormData, priority: e.target.value as PendingBill['priority'] })}
-                  >
-                    <option value="low">Low</option>
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                  </select>
-                </div>
               </div>
 
               <div className="items-section">
@@ -755,14 +978,28 @@ const Billing: React.FC = () => {
               </div>
 
               <div className="bill-totals">
+                <div className="hst-toggle">
+                  <label className="checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={billFormData.includeHST || false}
+                      onChange={toggleHST}
+                    />
+                    <span className="checkmark"></span>
+                    Include HST (13%)
+                  </label>
+                </div>
+                
                 <div className="totals-row">
                   <span>Subtotal:</span>
                   <span>${(billFormData.subtotal || 0).toFixed(2)}</span>
                 </div>
-                <div className="totals-row">
-                  <span>HST (13%):</span>
-                  <span>${(billFormData.tax || 0).toFixed(2)}</span>
-                </div>
+                {billFormData.includeHST && (
+                  <div className="totals-row">
+                    <span>HST (13%):</span>
+                    <span>${(billFormData.tax || 0).toFixed(2)}</span>
+                  </div>
+                )}
                 <div className="totals-row total">
                   <span>Total:</span>
                   <span>${(billFormData.total || 0).toFixed(2)}</span>
@@ -783,6 +1020,16 @@ const Billing: React.FC = () => {
                 <button type="button" onClick={closeBillModal} className="btn-secondary">
                   Cancel
                 </button>
+                {editingBill && (
+                  <button 
+                    type="button" 
+                    onClick={() => createInvoiceFromBill(editingBill)} 
+                    className="btn-secondary"
+                    style={{ backgroundColor: '#3b82f6', color: 'white' }}
+                  >
+                    Create Invoice From This Bill
+                  </button>
+                )}
                 <button type="submit" className="btn-primary">
                   {editingBill ? 'Update Bill' : 'Create Bill'}
                 </button>

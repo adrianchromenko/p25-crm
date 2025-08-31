@@ -37,7 +37,9 @@ import { format,
   addMonths,
   subMonths,
   parseISO,
-  isSameDay
+  isSameDay,
+  addWeeks,
+  subWeeks
 } from 'date-fns';
 import NotificationPermission from '../components/NotificationPermission';
 import { usePermissions } from '../hooks/usePermissions';
@@ -53,12 +55,20 @@ interface CalendarEvent {
   startTime: string;
   endTime: string;
   reminders: Reminder[];
-  type: 'meeting' | 'call' | 'deadline' | 'personal' | 'other';
+  type: 'meeting' | 'call' | 'deadline' | 'personal' | 'other' | 'bill';
   userId: string; // Owner of the event
   userName?: string; // For display purposes
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
   repeatEventId?: string; // Links to repeat event that created this event
+  // Bill-specific properties
+  billId?: string;
+  billNumber?: string;
+  customerName?: string;
+  amount?: number;
+  invoiceSent?: boolean;
+  paymentConfirmed?: boolean;
+  priority?: 'low' | 'medium' | 'high';
 }
 
 interface Reminder {
@@ -80,7 +90,7 @@ interface RepeatEvent {
   description: string;
   startTime: string;
   endTime: string;
-  type: 'meeting' | 'call' | 'deadline' | 'personal' | 'other';
+  type: 'meeting' | 'call' | 'deadline' | 'personal' | 'other' | 'bill';
   reminders: Reminder[];
   recurrence: {
     frequency: 'daily' | 'weekly' | 'monthly' | 'yearly';
@@ -101,6 +111,8 @@ const Calendar: React.FC = () => {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [reminderTemplates, setReminderTemplates] = useState<ReminderTemplate[]>([]);
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [currentWeek, setCurrentWeek] = useState(new Date());
+  const [viewMode, setViewMode] = useState<'monthly' | 'weekly'>('monthly');
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [showEventModal, setShowEventModal] = useState(false);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
@@ -198,7 +210,8 @@ const Calendar: React.FC = () => {
       const promises = [
         getDocs(eventsQuery),
         getDocs(collection(db, 'reminder_templates')),
-        getDocs(query(collection(db, 'repeat_events'), orderBy('createdAt', 'desc')))
+        getDocs(query(collection(db, 'repeat_events'), orderBy('createdAt', 'desc'))),
+        getDocs(collection(db, 'pending_bills'))
       ];
 
       // Add users query if user has permission
@@ -207,13 +220,44 @@ const Calendar: React.FC = () => {
       }
 
       const results = await Promise.all(promises);
-      const [eventsSnapshot, templatesSnapshot, repeatEventsSnapshot, usersSnapshot] = results;
+      const eventsSnapshot = results[0];
+      const templatesSnapshot = results[1];
+      const repeatEventsSnapshot = results[2];
+      const billsSnapshot = results[3];
+      const usersSnapshot = canViewAllUsers ? results[4] : undefined;
 
       const eventsData: CalendarEvent[] = [];
       eventsSnapshot.forEach((doc) => {
         const eventData = { id: doc.id, ...doc.data() } as CalendarEvent;
         eventsData.push(eventData);
       });
+
+      // Convert bills to calendar events
+      if (billsSnapshot) {
+        billsSnapshot.forEach((doc) => {
+          const billData = doc.data();
+          const billEvent: CalendarEvent = {
+            id: `bill-${doc.id}`,
+            title: `Bill #${billData.billNumber || 'N/A'}`,
+            description: `Customer: ${billData.customerName}\nAmount: $${billData.total?.toFixed(2) || '0.00'}`,
+            startDate: billData.dueDate || new Date().toISOString().split('T')[0],
+            endDate: billData.dueDate || new Date().toISOString().split('T')[0],
+            startTime: '09:00',
+            endTime: '09:30',
+            type: 'bill' as CalendarEvent['type'],
+            reminders: [],
+            userId: userProfile?.id || '',
+            billId: doc.id,
+            billNumber: billData.billNumber,
+            customerName: billData.customerName,
+            amount: billData.total,
+            invoiceSent: billData.invoiceSent || false,
+            paymentConfirmed: billData.paymentConfirmed || false,
+            billStatus: billData.status // Add the bill status
+          } as CalendarEvent & { billStatus: string };
+          eventsData.push(billEvent);
+        });
+      }
 
       const templatesData: ReminderTemplate[] = [];
       templatesSnapshot.forEach((doc) => {
@@ -690,8 +734,24 @@ const Calendar: React.FC = () => {
     return events.filter(event => isSameDay(parseISO(event.startDate), day));
   };
 
-  const getEventTypeColor = (type: string) => {
-    switch (type) {
+  const getEventTypeColor = (event: CalendarEvent) => {
+    if (event.type === 'bill') {
+      if (event.paymentConfirmed) {
+        return 'bg-green-100 text-green-800 border-green-200'; // Payment confirmed - green
+      } else if (event.invoiceSent) {
+        return 'bg-blue-100 text-blue-800 border-blue-200'; // Invoice sent - blue
+      } else {
+        // Check bill status from the bill data
+        const billData = event as CalendarEvent & { billStatus?: string };
+        if (billData.billStatus === 'upcoming') {
+          return 'bg-purple-100 text-purple-800 border-purple-200'; // Upcoming - purple
+        } else {
+          return 'bg-orange-100 text-orange-800 border-orange-200'; // Pending - orange
+        }
+      }
+    }
+    
+    switch (event.type) {
       case 'meeting': return 'bg-blue-100 text-blue-800 border-blue-200';
       case 'call': return 'bg-green-100 text-green-800 border-green-200';
       case 'deadline': return 'bg-red-100 text-red-800 border-red-200';
@@ -742,6 +802,20 @@ const Calendar: React.FC = () => {
         </div>
         
         <div className="calendar-header-actions">
+          <div className="view-toggle">
+            <button 
+              className={`btn-toggle ${viewMode === 'monthly' ? 'active' : ''}`}
+              onClick={() => setViewMode('monthly')}
+            >
+              Month
+            </button>
+            <button 
+              className={`btn-toggle ${viewMode === 'weekly' ? 'active' : ''}`}
+              onClick={() => setViewMode('weekly')}
+            >
+              Week
+            </button>
+          </div>
           <button 
             className="btn-secondary" 
             onClick={() => {
@@ -782,16 +856,31 @@ const Calendar: React.FC = () => {
       <div className="calendar-nav">
         <button 
           className="btn-icon" 
-          onClick={() => setCurrentDate(subMonths(currentDate, 1))}
+          onClick={() => {
+            if (viewMode === 'monthly') {
+              setCurrentDate(subMonths(currentDate, 1));
+            } else {
+              setCurrentWeek(subWeeks(currentWeek, 1));
+            }
+          }}
         >
           <ChevronLeft size={20} />
         </button>
         <h2 className="calendar-title">
-          {format(currentDate, 'MMMM yyyy')}
+          {viewMode === 'monthly' 
+            ? format(currentDate, 'MMMM yyyy')
+            : `${format(startOfWeek(currentWeek), 'MMM d')} - ${format(endOfWeek(currentWeek), 'MMM d, yyyy')}`
+          }
         </h2>
         <button 
           className="btn-icon" 
-          onClick={() => setCurrentDate(addMonths(currentDate, 1))}
+          onClick={() => {
+            if (viewMode === 'monthly') {
+              setCurrentDate(addMonths(currentDate, 1));
+            } else {
+              setCurrentWeek(addWeeks(currentWeek, 1));
+            }
+          }}
         >
           <ChevronRight size={20} />
         </button>
@@ -799,6 +888,7 @@ const Calendar: React.FC = () => {
 
       {/* Calendar Grid */}
       <div className="calendar-container">
+        {viewMode === 'monthly' ? (
         <div className="main-calendar-grid">
           {/* Day Headers */}
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
@@ -831,10 +921,12 @@ const Calendar: React.FC = () => {
                   {dayEvents.slice(0, 3).map((event, index) => (
                     <div
                       key={event.id}
-                      className={`event-item ${getEventTypeColor(event.type)}`}
+                      className={`event-item ${getEventTypeColor(event)}`}
                       onClick={(e) => {
                         e.stopPropagation();
-                        openEventModal(event);
+                        if (event.type !== 'bill') {
+                          openEventModal(event);
+                        }
                       }}
                     >
                       <span className="event-time">{event.startTime}</span>
@@ -855,6 +947,62 @@ const Calendar: React.FC = () => {
             );
           })}
         </div>
+        ) : (
+        <div className="weekly-calendar-grid">
+          {/* Day Headers */}
+          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
+            <div key={day} className="weekly-day-header">
+              {day}
+            </div>
+          ))}
+          
+          {/* Weekly Days */}
+          {eachDayOfInterval({ 
+            start: startOfWeek(currentWeek), 
+            end: endOfWeek(currentWeek) 
+          }).map((day) => {
+            const dayEvents = getEventsForDay(day);
+            
+            return (
+              <div
+                key={day.toString()}
+                className={`weekly-day ${isToday(day) ? 'today' : ''}`}
+                onClick={() => {
+                  setSelectedDate(day);
+                  if (dayEvents.length === 0) {
+                    openEventModal(undefined, day);
+                  }
+                }}
+              >
+                <div className="weekly-day-number">{format(day, 'd')}</div>
+                <div className="weekly-day-events">
+                  {dayEvents.map((event, index) => (
+                    <div
+                      key={event.id}
+                      className={`weekly-event-item ${getEventTypeColor(event)}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (event.type !== 'bill') {
+                          openEventModal(event);
+                        }
+                      }}
+                    >
+                      <span className="weekly-event-time">{event.startTime}</span>
+                      <span className="weekly-event-title">
+                        {event.repeatEventId && <Repeat size={10} className="repeat-icon" />}
+                        {event.title}
+                        {(isCoordinator || isAdmin) && event.userName && (
+                          <span className="event-user"> - {event.userName}</span>
+                        )}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        )}
       </div>
 
       {/* Event Modal */}
@@ -902,6 +1050,7 @@ const Calendar: React.FC = () => {
                     <option value="deadline">Deadline</option>
                     <option value="personal">Personal</option>
                     <option value="other">Other</option>
+                    <option value="bill">Bill</option>
                   </select>
                 </div>
 

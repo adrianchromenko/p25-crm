@@ -1211,9 +1211,9 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 24px 24px 0 24px;
+  padding: 20px 20px 0 20px;
   border-bottom: 1px solid rgba(59, 130, 246, 0.1);
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
 
 .modal-header h2 {
@@ -1239,14 +1239,14 @@
 
 /* Bill Form Styles */
 .bill-form {
-  padding: 0 24px 24px 24px;
+  padding: 0 20px 20px 20px;
 }
 
 .items-section {
-  margin: 24px 0;
-  padding: 20px;
+  margin: 16px 0;
+  padding: 16px;
   background: rgba(248, 250, 252, 0.5);
-  border-radius: 12px;
+  border-radius: 8px;
   border: 1px solid rgba(59, 130, 246, 0.1);
 }
 
@@ -1271,9 +1271,9 @@
 .item-row {
   display: grid;
   grid-template-columns: 2fr 80px 100px 100px auto;
-  gap: 12px;
+  gap: 8px;
   align-items: center;
-  padding: 12px;
+  padding: 8px;
   background: white;
   border-radius: 8px;
   border: 1px solid rgba(59, 130, 246, 0.1);
@@ -1307,10 +1307,10 @@
 }
 
 .bill-totals {
-  margin: 24px 0;
-  padding: 20px;
+  margin: 16px 0;
+  padding: 16px;
   background: rgba(59, 130, 246, 0.05);
-  border-radius: 12px;
+  border-radius: 8px;
   border: 1px solid rgba(59, 130, 246, 0.1);
 }
 
@@ -1335,8 +1335,8 @@
   display: flex;
   gap: 12px;
   justify-content: flex-end;
-  margin-top: 24px;
-  padding-top: 20px;
+  margin-top: 16px;
+  padding-top: 16px;
   border-top: 1px solid rgba(59, 130, 246, 0.1);
 }
 
@@ -3272,7 +3272,7 @@ body {
 
 /* Form Styles */
 .form-group {
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
 }
 
 .form-group label {
@@ -3280,8 +3280,30 @@ body {
   align-items: center;
   gap: 0.5rem;
   font-weight: 500;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.3rem;
   color: var(--text-primary);
+}
+
+/* Compact billing modal styles */
+.bill-form .form-group {
+  margin-bottom: 0.75rem;
+}
+
+.bill-form .form-group label {
+  margin-bottom: 0.25rem;
+  font-size: 0.875rem;
+}
+
+.bill-form input,
+.bill-form textarea,
+.bill-form select {
+  padding: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.bill-form textarea {
+  resize: vertical;
+  min-height: 60px;
 }
 
 .form-group input,
@@ -7601,5 +7623,967 @@ body {
   
   .upload-title {
     font-size: 14px;
+  }
+}
+
+/* Bill Status Buttons */
+.bill-status-buttons {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.status-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 1px solid;
+  border-radius: 4px;
+  background: none;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+/* Invoice Sent Button */
+.status-toggle-btn.invoice-sent.sent {
+  color: #3b82f6;
+  border-color: #3b82f6;
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.status-toggle-btn.invoice-sent.sent:hover {
+  background: rgba(59, 130, 246, 0.2);
+}
+
+.status-toggle-btn.invoice-sent.not-sent {
+  color: var(--text-secondary);
+  border-color: var(--border-color);
+  background: rgba(107, 114, 128, 0.05);
+}
+
+.status-toggle-btn.invoice-sent.not-sent:hover {
+  background: rgba(107, 114, 128, 0.1);
+}
+
+/* Payment Confirmed Button */
+.status-toggle-btn.payment-confirmed.confirmed {
+  color: var(--success-color);
+  border-color: var(--success-color);
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.status-toggle-btn.payment-confirmed.confirmed:hover {
+  background: rgba(16, 185, 129, 0.2);
+}
+
+.status-toggle-btn.payment-confirmed.unconfirmed {
+  color: var(--warning-color);
+  border-color: var(--warning-color);
+  background: rgba(245, 158, 11, 0.1);
+}
+
+.status-toggle-btn.payment-confirmed.unconfirmed:hover {
+  background: rgba(245, 158, 11, 0.2);
+}
+
+/* HST Toggle */
+.hst-toggle {
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.checkbox-label input[type="checkbox"] {
+  position: relative;
+  cursor: pointer;
+  margin: 0;
+  width: 18px;
+  height: 18px;
+}
+
+.checkbox-label input[type="checkbox"]:checked {
+  accent-color: var(--primary-color);
+}
+
+.checkbox-label .checkmark {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+
+/* Weekly Calendar Styles */
+.weekly-calendar-section {
+  margin-top: 32px;
+  padding: 24px;
+  background: var(--card-bg);
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+}
+
+.weekly-calendar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.weekly-calendar-header h3 {
+  color: var(--text-primary);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.weekly-nav {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.week-title {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text-primary);
+  min-width: 200px;
+  text-align: center;
+}
+
+.weekly-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1px;
+  background: var(--border-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.weekly-day-header {
+  background: var(--bg-color);
+  padding: 12px 8px;
+  text-align: center;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.weekly-day {
+  background: white;
+  padding: 8px;
+  min-height: 120px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  display: flex;
+  flex-direction: column;
+}
+
+.weekly-day:hover {
+  background: var(--bg-color);
+}
+
+.weekly-day.today {
+  background: rgba(59, 130, 246, 0.05);
+  border-left: 3px solid var(--primary-color);
+}
+
+.weekly-day-number {
+  font-weight: 600;
+  font-size: 16px;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.weekly-day-events {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.weekly-event-item {
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.weekly-event-item:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.weekly-event-time {
+  font-weight: 600;
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+.weekly-event-title {
+  font-weight: 500;
+  line-height: 1.3;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.weekly-event-title .repeat-icon {
+  opacity: 0.6;
+}
+
+.weekly-event-title .event-user {
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+
+/* View Toggle Styles */
+.view-toggle {
+  display: flex;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--card-bg);
+}
+
+.btn-toggle {
+  padding: 8px 16px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s;
+  border-right: 1px solid var(--border-color);
+}
+
+.btn-toggle:last-child {
+  border-right: none;
+}
+
+.btn-toggle:hover {
+  background: var(--bg-color);
+  color: var(--text-primary);
+}
+
+.btn-toggle.active {
+  background: var(--primary-color);
+  color: white;
+}
+
+.btn-toggle.active:hover {
+  background: var(--primary-hover);
+}
+
+
+/* Update weekly calendar styles for integrated view */
+.weekly-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1px;
+  background: var(--border-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-top: 20px;
+}
+
+.weekly-day-header {
+  background: var(--bg-color);
+  padding: 12px 8px;
+  text-align: center;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.weekly-day {
+  background: white;
+  padding: 8px;
+  min-height: 150px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  display: flex;
+  flex-direction: column;
+}
+
+.weekly-day:hover {
+  background: var(--bg-color);
+}
+
+.weekly-day.today {
+  background: rgba(59, 130, 246, 0.05);
+  border-left: 3px solid var(--primary-color);
+}
+
+.weekly-day-number {
+  font-weight: 600;
+  font-size: 18px;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.weekly-day-events {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.weekly-event-item {
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.weekly-event-item:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.weekly-event-time {
+  font-weight: 600;
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.weekly-event-title {
+  font-weight: 500;
+  line-height: 1.4;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.weekly-event-title .repeat-icon {
+  opacity: 0.6;
+}
+
+.weekly-event-title .event-user {
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+
+/* Bills Calendar Styles */
+.bills-calendar-section {
+  margin: 24px 0;
+  padding: 24px;
+  background: var(--card-bg);
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+}
+
+.bills-calendar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.bills-calendar-header h2 {
+  color: var(--text-primary);
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.calendar-controls {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.calendar-nav {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.calendar-nav .calendar-title {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text-primary);
+  min-width: 200px;
+  text-align: center;
+  margin: 0;
+}
+
+/* Monthly calendar for bills */
+.bills-monthly-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1px;
+  background: var(--border-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.bills-day-header {
+  background: var(--bg-color);
+  padding: 12px 8px;
+  text-align: center;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.bills-calendar-day {
+  background: white;
+  padding: 8px;
+  min-height: 100px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  display: flex;
+  flex-direction: column;
+}
+
+.bills-calendar-day:hover {
+  background: var(--bg-color);
+}
+
+.bills-calendar-day.today {
+  background: rgba(59, 130, 246, 0.05);
+  border-left: 3px solid var(--primary-color);
+}
+
+.bills-calendar-day.other-month {
+  background: #fafafa;
+  color: #9ca3af;
+}
+
+.bills-day-number {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+  text-align: center;
+}
+
+.bills-calendar-day.other-month .bills-day-number {
+  color: #9ca3af;
+}
+
+.bills-day-events {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.bills-event-item {
+  padding: 4px 6px;
+  border-radius: 4px;
+  border: 1px solid;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.bills-event-item:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.bills-event-title {
+  font-weight: 600;
+  font-size: 10px;
+}
+
+.bills-event-customer {
+  font-weight: 500;
+  font-size: 10px;
+  opacity: 0.9;
+}
+
+.bills-event-amount {
+  font-weight: 600;
+  font-size: 10px;
+  opacity: 0.8;
+}
+
+.more-bills {
+  font-size: 10px;
+  color: var(--text-secondary);
+  text-align: center;
+  margin-top: 2px;
+}
+
+/* Weekly calendar for bills */
+.bills-weekly-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1px;
+  background: var(--border-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.bills-weekly-day-header {
+  background: var(--bg-color);
+  padding: 12px 8px;
+  text-align: center;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.bills-weekly-day {
+  background: white;
+  padding: 8px;
+  min-height: 150px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  display: flex;
+  flex-direction: column;
+}
+
+.bills-weekly-day:hover {
+  background: var(--bg-color);
+}
+
+.bills-weekly-day.today {
+  background: rgba(59, 130, 246, 0.05);
+  border-left: 3px solid var(--primary-color);
+}
+
+.bills-weekly-day-number {
+  font-weight: 600;
+  font-size: 18px;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.bills-weekly-day-events {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bills-weekly-event-item {
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.bills-weekly-event-item:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.bills-weekly-event-title {
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.bills-weekly-event-customer {
+  font-weight: 500;
+  font-size: 11px;
+  opacity: 0.9;
+}
+
+.bills-weekly-event-amount {
+  font-weight: 600;
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+/* Active button state for show/hide calendar */
+.btn-secondary.active {
+  background: var(--primary-color);
+  color: white;
+}
+
+.btn-secondary.active:hover {
+  background: var(--primary-hover);
+}
+
+
+/* Enhanced Bills Weekly View - Pill Style */
+.bills-weekly-day-events {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px 0;
+}
+
+.bills-weekly-event-item {
+  padding: 8px 12px;
+  border-radius: 20px; /* More rounded for pill effect */
+  border: 1px solid;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 45px;
+  justify-content: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.bills-weekly-event-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  opacity: 0.9;
+}
+
+.bills-weekly-event-title {
+  font-weight: 700;
+  font-size: 11px;
+  text-align: center;
+}
+
+.bills-weekly-event-customer {
+  font-weight: 500;
+  font-size: 10px;
+  text-align: center;
+  opacity: 0.9;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bills-weekly-event-amount {
+  font-weight: 700;
+  font-size: 11px;
+  text-align: center;
+  opacity: 0.95;
+}
+
+/* Enhanced color combinations for pill effect */
+.bg-purple-100.text-purple-800.border-purple-200 {
+  background: linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%);
+  color: #6b46c1;
+  border-color: #c4b5fd;
+}
+
+.bg-orange-100.text-orange-800.border-orange-200 {
+  background: linear-gradient(135deg, #fed7aa 0%, #fdba74 100%);
+  color: #ea580c;
+  border-color: #fb923c;
+}
+
+.bg-blue-100.text-blue-800.border-blue-200 {
+  background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+  color: #1e40af;
+  border-color: #93c5fd;
+}
+
+.bg-green-100.text-green-800.border-green-200 {
+  background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+  color: #166534;
+  border-color: #86efac;
+}
+
+/* Ensure adequate spacing in weekly view */
+.bills-weekly-day {
+  background: white;
+  padding: 12px;
+  min-height: 180px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border-color);
+}
+
+.bills-weekly-day:last-child {
+  border-right: none;
+}
+
+.bills-weekly-day:hover {
+  background: var(--bg-color);
+}
+
+.bills-weekly-day.today {
+  background: rgba(59, 130, 246, 0.03);
+  border-left: 4px solid var(--primary-color);
+}
+
+.bills-weekly-day-number {
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+  text-align: center;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+
+/* Updated pill styling without bill number */
+.bills-weekly-event-item {
+  padding: 8px 12px;
+  border-radius: 20px;
+  border: 1px solid;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-height: 40px;
+  justify-content: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.bills-weekly-event-customer {
+  font-weight: 600;
+  font-size: 11px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+}
+
+.bills-weekly-event-amount {
+  font-weight: 700;
+  font-size: 12px;
+  text-align: center;
+  opacity: 0.95;
+  line-height: 1.2;
+}
+
+/* Monthly view adjustments */
+.bills-event-customer {
+  font-weight: 600;
+  font-size: 10px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bills-event-amount {
+  font-weight: 700;
+  font-size: 10px;
+  text-align: center;
+  opacity: 0.95;
+}
+
+
+/* Weekly Totals Summary Styles */
+.weekly-totals-summary {
+  margin: 20px 0;
+  padding: 20px;
+  background: var(--bg-color);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.weekly-totals-summary h4 {
+  margin: 0 0 16px 0;
+  color: var(--text-primary);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.totals-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.total-item {
+  padding: 16px;
+  border-radius: 8px;
+  border: 2px solid;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  transition: transform 0.2s;
+}
+
+.total-item:hover {
+  transform: translateY(-2px);
+}
+
+.total-item.upcoming {
+  background: linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%);
+  color: #6b46c1;
+  border-color: #c4b5fd;
+}
+
+.total-item.pending {
+  background: linear-gradient(135deg, #fed7aa 0%, #fdba74 100%);
+  color: #ea580c;
+  border-color: #fb923c;
+}
+
+.total-item.invoice-sent {
+  background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+  color: #1e40af;
+  border-color: #93c5fd;
+}
+
+.total-item.payment-confirmed {
+  background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);
+  color: #166534;
+  border-color: #86efac;
+}
+
+.total-label {
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.8;
+}
+
+.total-count {
+  font-weight: 700;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.total-amount {
+  font-weight: 600;
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+@media (max-width: 768px) {
+  .totals-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+  
+  .total-item {
+    padding: 12px;
+  }
+  
+  .total-count {
+    font-size: 20px;
+  }
+}
+
+
+/* Fix weekly totals layout and add converted styling */
+.weekly-totals-summary {
+  margin: 20px 0;
+  padding: 20px;
+  background: var(--bg-color);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.totals-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  max-width: 100%;
+}
+
+.total-item.converted {
+  background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+  color: #374151;
+  border-color: #9ca3af;
+}
+
+/* Responsive design for totals */
+@media (max-width: 1200px) {
+  .totals-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .totals-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+  
+  .total-item {
+    padding: 12px;
+  }
+  
+  .total-count {
+    font-size: 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .totals-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Add gray gradient for converted bills in calendar */
+.bg-gray-100.text-gray-800.border-gray-200 {
+  background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+  color: #374151;
+  border-color: #9ca3af;
+}
+
+
+/* Update totals grid back to 4 columns */
+.totals-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  max-width: 100%;
+}
+
+/* Responsive design for totals */
+@media (max-width: 1200px) {
+  .totals-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .totals-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .totals-grid {
+    grid-template-columns: 1fr;
   }
 }

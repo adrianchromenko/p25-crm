@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { 
   collection, 
   getDocs, 
@@ -28,6 +29,7 @@ import { v4 as uuidv4 } from 'uuid';
 import jsPDF from 'jspdf';
 
 const Invoices: React.FC = () => {
+  const location = useLocation();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,6 +66,31 @@ const Invoices: React.FC = () => {
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Handle bill data from Billing page
+  useEffect(() => {
+    const billData = location.state?.fromBill;
+    if (billData) {
+      // Populate form with bill data and open modal
+      setFormData({
+        invoiceNumber: generateInvoiceNumber(),
+        customerId: '',
+        customerName: billData.customerName,
+        customerEmail: billData.customerEmail,
+        customerAddress: billData.customerAddress,
+        issueDate: new Date().toISOString().split('T')[0],
+        dueDate: addDays(new Date(), 30).toISOString().split('T')[0],
+        subtotal: billData.subtotal,
+        hstRate: billData.hstAmount / billData.subtotal || 0.13,
+        hstAmount: billData.hstAmount,
+        totalAmount: billData.totalAmount,
+        status: 'draft',
+        notes: billData.notes,
+      });
+      setLineItems(billData.lineItems);
+      setShowModal(true);
+    }
+  }, [location.state]);
 
   const fetchData = async () => {
     try {
