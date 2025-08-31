@@ -18,6 +18,7 @@ import Calendar from './pages/Calendar';
 import Notes from './pages/Notes';
 import Settings from './pages/Settings';
 import UserManagement from './pages/UserManagement';
+import FinancialReader from './pages/FinancialReader';
 import './App.css';
 
 function App() {
@@ -47,6 +48,7 @@ function App() {
             <Route path="services" element={<Services />} />
             <Route path="calendar" element={<Calendar />} />
             <Route path="notes" element={<Notes />} />
+            <Route path="financial-reader" element={<FinancialReader />} />
             <Route path="settings" element={<Settings />} />
             <Route path="user-management" element={<UserManagement />} />
           </Route>

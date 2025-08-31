@@ -19,7 +19,9 @@ import {
   Globe,
   DollarSign,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
+  Grid3X3,
+  List
 } from 'lucide-react';
 import { format, parseISO, isBefore, addDays } from 'date-fns';
 
@@ -33,6 +35,7 @@ const CustomersWithWebsites: React.FC = () => {
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [websites, setWebsites] = useState<Website[]>([]);
+  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
   const [formData, setFormData] = useState<Partial<Customer>>({
     name: '',
     email: '',
@@ -219,10 +222,28 @@ const CustomersWithWebsites: React.FC = () => {
           <h1>Hosting Customers</h1>
           <p>Manage hosting clients and their websites</p>
         </div>
-        <button className="btn-primary" onClick={() => openModal()}>
-          <Plus size={20} />
-          Add Customer
-        </button>
+        <div className="header-actions">
+          <div className="view-toggle">
+            <button
+              className={`btn-icon ${viewMode === 'table' ? 'active' : ''}`}
+              onClick={() => setViewMode('table')}
+              title="Table View"
+            >
+              <List size={20} />
+            </button>
+            <button
+              className={`btn-icon ${viewMode === 'cards' ? 'active' : ''}`}
+              onClick={() => setViewMode('cards')}
+              title="Card View"
+            >
+              <Grid3X3 size={20} />
+            </button>
+          </div>
+          <button className="btn-primary" onClick={() => openModal()}>
+            <Plus size={20} />
+            Add Customer
+          </button>
+        </div>
       </div>
 
       <div className="search-bar">
@@ -235,74 +256,163 @@ const CustomersWithWebsites: React.FC = () => {
         />
       </div>
 
-      <div className="customers-grid">
-        {filteredCustomers.map((customer) => (
-          <div key={customer.id} className="customer-card enhanced">
-            <div className="customer-header">
-              <h3>{customer.name}</h3>
-              <span className={`status-badge ${customer.status}`}>
-                {customer.status}
-              </span>
-            </div>
-            
-            <div className="customer-info">
-              <p><strong>Company:</strong> {customer.company}</p>
-              <p><strong>Email:</strong> {customer.email}</p>
-              <p><strong>Phone:</strong> {customer.phone}</p>
-              {customer.totalMonthlyFee && (
-                <p className="monthly-total">
-                  <strong>Total Monthly:</strong> 
-                  <span className="amount">${customer.totalMonthlyFee.toFixed(2)}</span>
-                </p>
-              )}
-            </div>
-
-            {customer.websites && customer.websites.length > 0 && (
-              <div className="websites-section">
-                <h4><Globe size={16} /> Websites ({customer.websites.length})</h4>
-                <div className="websites-list">
-                  {customer.websites.map((website) => {
-                    const status = getWebsiteStatus(website, customer.id!);
-                    return (
-                      <div key={website.id} className={`website-item ${status}`}>
-                        <div className="website-url">
-                          {status === 'expired' && <AlertCircle size={14} className="status-icon" />}
-                          {status === 'expiring-soon' && <AlertCircle size={14} className="status-icon warning" />}
-                          {status === 'covered' && <CheckCircle size={14} className="status-icon success" />}
-                          <span>{website.url}</span>
+      {viewMode === 'table' ? (
+        <div className="table-container">
+          <table className="customers-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Company</th>
+                <th>Email</th>
+                <th>Phone</th>
+                <th>Status</th>
+                <th>Websites</th>
+                <th>Monthly Total</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredCustomers.map((customer) => (
+                <tr key={customer.id}>
+                  <td>
+                    <div className="customer-name">{customer.name}</div>
+                  </td>
+                  <td>{customer.company}</td>
+                  <td>{customer.email}</td>
+                  <td>{customer.phone}</td>
+                  <td>
+                    <span className={`status-badge ${customer.status}`}>
+                      {customer.status}
+                    </span>
+                  </td>
+                  <td>
+                    <div className="websites-cell">
+                      {customer.websites && customer.websites.length > 0 ? (
+                        <div className="websites-summary">
+                          <span className="website-count">
+                            <Globe size={14} /> {customer.websites.length}
+                          </span>
+                          <div className="website-statuses">
+                            {customer.websites.map((website) => {
+                              const status = getWebsiteStatus(website, customer.id!);
+                              return (
+                                <span key={website.id} className={`status-dot ${status}`} title={website.url}>
+                                  {status === 'expired' && <AlertCircle size={12} />}
+                                  {status === 'expiring-soon' && <AlertCircle size={12} />}
+                                  {status === 'covered' && <CheckCircle size={12} />}
+                                  {status === 'no-payment' && <AlertCircle size={12} />}
+                                </span>
+                              );
+                            })}
+                          </div>
                         </div>
-                        <div className="website-details">
-                          <span className="hosting-plan">{website.hostingPlan}</span>
-                          <span className="monthly-fee">${website.monthlyFee}/mo</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      ) : (
+                        <span className="no-websites">No websites</span>
+                      )}
+                    </div>
+                  </td>
+                  <td>
+                    {customer.totalMonthlyFee ? (
+                      <span className="amount">${customer.totalMonthlyFee.toFixed(2)}</span>
+                    ) : (
+                      <span className="no-amount">$0.00</span>
+                    )}
+                  </td>
+                  <td>
+                    <div className="table-actions">
+                      <button 
+                        className="btn-icon small" 
+                        onClick={() => {
+                          setSelectedCustomerId(customer.id!);
+                          setShowPaymentHistory(true);
+                        }}
+                        title="View Payment History"
+                      >
+                        <DollarSign size={14} />
+                      </button>
+                      <button className="btn-icon small" onClick={() => openModal(customer)} title="Edit">
+                        <Edit2 size={14} />
+                      </button>
+                      <button className="btn-icon small delete" onClick={() => handleDelete(customer.id!)} title="Delete">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="customers-grid">
+          {filteredCustomers.map((customer) => (
+            <div key={customer.id} className="customer-card enhanced">
+              <div className="customer-header">
+                <h3>{customer.name}</h3>
+                <span className={`status-badge ${customer.status}`}>
+                  {customer.status}
+                </span>
               </div>
-            )}
+              
+              <div className="customer-info">
+                <p><strong>Company:</strong> {customer.company}</p>
+                <p><strong>Email:</strong> {customer.email}</p>
+                <p><strong>Phone:</strong> {customer.phone}</p>
+                {customer.totalMonthlyFee && (
+                  <p className="monthly-total">
+                    <strong>Total Monthly:</strong> 
+                    <span className="amount">${customer.totalMonthlyFee.toFixed(2)}</span>
+                  </p>
+                )}
+              </div>
 
-            <div className="customer-actions">
-              <button 
-                className="btn-icon" 
-                onClick={() => {
-                  setSelectedCustomerId(customer.id!);
-                  setShowPaymentHistory(true);
-                }}
-                title="View Payment History"
-              >
-                <DollarSign size={18} />
-              </button>
-              <button className="btn-icon" onClick={() => openModal(customer)}>
-                <Edit2 size={18} />
-              </button>
-              <button className="btn-icon delete" onClick={() => handleDelete(customer.id!)}>
-                <Trash2 size={18} />
-              </button>
+              {customer.websites && customer.websites.length > 0 && (
+                <div className="websites-section">
+                  <h4><Globe size={16} /> Websites ({customer.websites.length})</h4>
+                  <div className="websites-list">
+                    {customer.websites.map((website) => {
+                      const status = getWebsiteStatus(website, customer.id!);
+                      return (
+                        <div key={website.id} className={`website-item ${status}`}>
+                          <div className="website-url">
+                            {status === 'expired' && <AlertCircle size={14} className="status-icon" />}
+                            {status === 'expiring-soon' && <AlertCircle size={14} className="status-icon warning" />}
+                            {status === 'covered' && <CheckCircle size={14} className="status-icon success" />}
+                            <span>{website.url}</span>
+                          </div>
+                          <div className="website-details">
+                            <span className="hosting-plan">{website.hostingPlan}</span>
+                            <span className="monthly-fee">${website.monthlyFee}/mo</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <div className="customer-actions">
+                <button 
+                  className="btn-icon" 
+                  onClick={() => {
+                    setSelectedCustomerId(customer.id!);
+                    setShowPaymentHistory(true);
+                  }}
+                  title="View Payment History"
+                >
+                  <DollarSign size={18} />
+                </button>
+                <button className="btn-icon" onClick={() => openModal(customer)}>
+                  <Edit2 size={18} />
+                </button>
+                <button className="btn-icon delete" onClick={() => handleDelete(customer.id!)}>
+                  <Trash2 size={18} />
+                </button>
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {showModal && (
         <div className="modal-overlay">

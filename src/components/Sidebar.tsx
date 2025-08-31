@@ -16,7 +16,8 @@ import {
   StickyNote,
   Clock,
   TrendingUp,
-  Shield
+  Shield,
+  Upload
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
@@ -108,6 +109,7 @@ const Sidebar: React.FC = () => {
     { path: '/billing', name: 'Billing', icon: <Receipt size={20} />, badge: billingTotal > 0 ? formatCurrency(billingTotal) : null },
     { path: '/hourly-tracker', name: 'Hourly Tracker', icon: <Clock size={20} /> },
     { path: '/financial-forecast', name: 'Financial Forecast', icon: <TrendingUp size={20} /> },
+    { path: '/financial-reader', name: 'Financial Reader', icon: <Upload size={20} /> },
     { path: '/payments', name: 'Payments', icon: <CreditCard size={20} /> },
     { path: '/invoices', name: 'Invoices', icon: <FileText size={20} /> },
     { path: '/notes', name: 'Notes', icon: <StickyNote size={20} /> },
