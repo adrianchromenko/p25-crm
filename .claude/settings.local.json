@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cat:*)",
+      "Bash(cp:*)",
+      "Bash(npm start)",
+      "Bash(npm install)",
+      "Bash(rd:*)",
+      "Bash(timeout:*)",
+      "Bash(taskkill:*)",
+      "Bash(del \"C:\\Users\\Adrian\\Desktop\\prog\\p25-crm\\src\\pages\\GoogleAds.tsx\")"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

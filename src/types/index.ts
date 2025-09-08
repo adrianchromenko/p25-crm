@@ -70,8 +70,9 @@ export interface Invoice {
   dueDate: string;
   lineItems: InvoiceLineItem[];
   subtotal: number;
-  hstRate: number; // 0.13 for Ontario HST
-  hstAmount: number;
+  hstEnabled?: boolean; // Whether HST is applied to this invoice
+  hstRate?: number; // 0.13 for Ontario HST
+  hstAmount?: number;
   totalAmount: number;
   status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
   notes?: string;

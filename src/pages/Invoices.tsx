@@ -56,6 +56,7 @@ const Invoices: React.FC = () => {
     issueDate: new Date().toISOString().split('T')[0],
     dueDate: new Date().toISOString().split('T')[0],
     subtotal: 0,
+    hstEnabled: true,
     hstRate: 0.13,
     hstAmount: 0,
     totalAmount: 0,
@@ -81,6 +82,7 @@ const Invoices: React.FC = () => {
         issueDate: new Date().toISOString().split('T')[0],
         dueDate: addDays(new Date(), 30).toISOString().split('T')[0],
         subtotal: billData.subtotal,
+        hstEnabled: billData.hstAmount > 0,
         hstRate: billData.hstAmount / billData.subtotal || 0.13,
         hstAmount: billData.hstAmount,
         totalAmount: billData.totalAmount,
@@ -163,7 +165,7 @@ const Invoices: React.FC = () => {
 
   const calculateTotals = (items: InvoiceLineItem[]) => {
     const subtotal = items.reduce((sum, item) => sum + item.total, 0);
-    const hstAmount = subtotal * (formData.hstRate || 0);
+    const hstAmount = formData.hstEnabled ? subtotal * (formData.hstRate || 0) : 0;
     const totalAmount = subtotal + hstAmount;
 
     setFormData({
@@ -299,6 +301,7 @@ const Invoices: React.FC = () => {
         issueDate: new Date().toISOString().split('T')[0],
         dueDate: new Date().toISOString().split('T')[0],
         subtotal: 0,
+        hstEnabled: true,
         hstRate: 0.13,
         hstAmount: 0,
         totalAmount: 0,
@@ -385,10 +388,13 @@ const Invoices: React.FC = () => {
       pdf.text('adrian@primarydm.com', margin, yPos);
       yPos += 8;
       
-      // HST Number
-      pdf.setTextColor(148, 163, 184); // #94a3b8
-      pdf.setFontSize(9);
-      pdf.text('HST#: 83023 3235 RT0001', margin, yPos);
+      // HST Number (only show if HST is enabled)
+      if (invoice.hstEnabled) {
+        pdf.setTextColor(148, 163, 184); // #94a3b8
+        pdf.setFontSize(9);
+        pdf.text('HST#: 83023 3235 RT0001', margin, yPos);
+        yPos += 5;
+      }
       
       // Invoice title and details (right side)
       pdf.setFontSize(16);
@@ -491,11 +497,13 @@ const Invoices: React.FC = () => {
       pdf.text(`$${invoice.subtotal.toFixed(2)}`, pageWidth - margin - 2, yPos, { align: 'right' });
       yPos += 7;
       
-      pdf.setTextColor(100, 116, 139);
-      pdf.text(`HST (${(invoice.hstRate * 100).toFixed(1)}%):`, summaryX, yPos);
-      pdf.setTextColor(51, 65, 85);
-      pdf.text(`$${invoice.hstAmount.toFixed(2)}`, pageWidth - margin - 2, yPos, { align: 'right' });
-      yPos += 7;
+      if (invoice.hstEnabled) {
+        pdf.setTextColor(100, 116, 139);
+        pdf.text(`HST (${((invoice.hstRate || 0) * 100).toFixed(1)}%):`, summaryX, yPos);
+        pdf.setTextColor(51, 65, 85);
+        pdf.text(`$${(invoice.hstAmount || 0).toFixed(2)}`, pageWidth - margin - 2, yPos, { align: 'right' });
+        yPos += 7;
+      }
       
       // Total line
       pdf.setDrawColor(226, 232, 240);
@@ -723,18 +731,34 @@ const Invoices: React.FC = () => {
                   </select>
                 </div>
                 <div className="form-group">
-                  <label>HST Rate (%)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={(formData.hstRate || 0) * 100}
-                    onChange={(e) => {
-                      const rate = parseFloat(e.target.value) / 100;
-                      setFormData({ ...formData, hstRate: rate });
-                      calculateTotals(lineItems);
-                    }}
-                  />
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={formData.hstEnabled || false}
+                      onChange={(e) => {
+                        setFormData({ ...formData, hstEnabled: e.target.checked });
+                        setTimeout(() => calculateTotals(lineItems), 0);
+                      }}
+                      style={{ marginRight: '8px' }}
+                    />
+                    Apply HST
+                  </label>
                 </div>
+                {formData.hstEnabled && (
+                  <div className="form-group">
+                    <label>HST Rate (%)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={(formData.hstRate || 0) * 100}
+                      onChange={(e) => {
+                        const rate = parseFloat(e.target.value) / 100;
+                        setFormData({ ...formData, hstRate: rate });
+                        calculateTotals(lineItems);
+                      }}
+                    />
+                  </div>
+                )}
               </div>
 
               {showNewCustomerForm && (
@@ -854,10 +878,12 @@ const Invoices: React.FC = () => {
                     <span>Subtotal:</span>
                     <span>${(formData.subtotal || 0).toFixed(2)}</span>
                   </div>
-                  <div className="total-row">
-                    <span>HST ({((formData.hstRate || 0) * 100).toFixed(1)}%):</span>
-                    <span>${(formData.hstAmount || 0).toFixed(2)}</span>
-                  </div>
+                  {formData.hstEnabled && (
+                    <div className="total-row">
+                      <span>HST ({((formData.hstRate || 0) * 100).toFixed(1)}%):</span>
+                      <span>${(formData.hstAmount || 0).toFixed(2)}</span>
+                    </div>
+                  )}
                   <div className="total-row total">
                     <span><strong>Total:</strong></span>
                     <span><strong>${(formData.totalAmount || 0).toFixed(2)}</strong></span>
@@ -925,7 +951,9 @@ const Invoices: React.FC = () => {
                     <p>Sault Ste. Marie, Ontario</p>
                     <p>(647) 203-3189</p>
                     <p>adrian@primarydm.com</p>
-                    <p className="hst-number">HST#: 83023 3235 RT0001</p>
+                    {previewInvoice.hstEnabled && (
+                      <p className="hst-number">HST#: 83023 3235 RT0001</p>
+                    )}
                   </div>
                 </div>
                 <div className="invoice-meta">
@@ -975,10 +1003,12 @@ const Invoices: React.FC = () => {
                   <span>Subtotal:</span>
                   <span>${previewInvoice.subtotal.toFixed(2)}</span>
                 </div>
-                <div className="summary-row">
-                  <span>HST ({(previewInvoice.hstRate * 100).toFixed(1)}%):</span>
-                  <span>${previewInvoice.hstAmount.toFixed(2)}</span>
-                </div>
+                {previewInvoice.hstEnabled && (
+                  <div className="summary-row">
+                    <span>HST ({((previewInvoice.hstRate || 0) * 100).toFixed(1)}%):</span>
+                    <span>${(previewInvoice.hstAmount || 0).toFixed(2)}</span>
+                  </div>
+                )}
                 <div className="summary-row total">
                   <span><strong>Total:</strong></span>
                   <span><strong>${previewInvoice.totalAmount.toFixed(2)}</strong></span>
