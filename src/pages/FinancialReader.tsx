@@ -1,8 +1,8 @@
 import React from 'react';
-import FinancialReaderComponent from '../components/FinancialReader';
+import FinancialReaderEnhanced from '../components/FinancialReaderEnhanced';
 
 const FinancialReader: React.FC = () => {
-  return <FinancialReaderComponent />;
+  return <FinancialReaderEnhanced />;
 };
 
 export default FinancialReader;

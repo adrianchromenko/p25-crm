@@ -120,3 +120,39 @@ export interface FinancialForecast {
   createdAt?: Date;
   updatedAt?: Date;
 }
+
+export interface TransactionCategory {
+  id?: string;
+  name: string;
+  type: 'income' | 'expense';
+  color?: string;
+  icon?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+export interface TransactionTag {
+  id?: string;
+  name: string;
+  color?: string;
+  description?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+export interface BankTransaction {
+  id?: string;
+  date: string;
+  description: string;
+  amount: number;
+  balance?: number;
+  categoryId?: string;
+  categoryName?: string;
+  tagIds?: string[]; // Array of tag IDs
+  bankName?: string;
+  accountNumber?: string;
+  month: string; // Format: YYYY-MM for easy filtering
+  notes?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+}

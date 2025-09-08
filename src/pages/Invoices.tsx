@@ -163,17 +163,18 @@ const Invoices: React.FC = () => {
     calculateTotals(updatedItems);
   };
 
-  const calculateTotals = (items: InvoiceLineItem[]) => {
+  const calculateTotals = (items: InvoiceLineItem[], hstEnabled?: boolean) => {
     const subtotal = items.reduce((sum, item) => sum + item.total, 0);
-    const hstAmount = formData.hstEnabled ? subtotal * (formData.hstRate || 0) : 0;
+    const isHstEnabled = hstEnabled !== undefined ? hstEnabled : formData.hstEnabled;
+    const hstAmount = isHstEnabled ? subtotal * (formData.hstRate || 0) : 0;
     const totalAmount = subtotal + hstAmount;
 
-    setFormData({
-      ...formData,
+    setFormData(prev => ({
+      ...prev,
       subtotal,
       hstAmount,
       totalAmount
-    });
+    }));
   };
 
   const handleCustomerSelect = (customerId: string) => {
@@ -736,8 +737,9 @@ const Invoices: React.FC = () => {
                       type="checkbox"
                       checked={formData.hstEnabled || false}
                       onChange={(e) => {
-                        setFormData({ ...formData, hstEnabled: e.target.checked });
-                        setTimeout(() => calculateTotals(lineItems), 0);
+                        const isEnabled = e.target.checked;
+                        setFormData({ ...formData, hstEnabled: isEnabled });
+                        calculateTotals(lineItems, isEnabled);
                       }}
                       style={{ marginRight: '8px' }}
                     />
